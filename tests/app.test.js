@@ -1,0 +1,123 @@
+"use strict";
+/* Test de bout en bout : la vraie page (renderer/index.html + shim.js + account.js) dans jsdom,
+   reliée aux vrais services, face à un faux serveur Ragic et un faux Gmail. */
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const path = require("node:path");
+const { JSDOM } = require("jsdom");
+const { makeFake } = require("./fake-ragic");
+const config = require("../src/config");
+const { Services } = require("../src/services");
+const { b64url } = require("../src/google");
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const memVault = () => { const m = new Map(); return { get: (k) => (m.has(k) ? m.get(k) : null), set: (k, v) => m.set(k, v), remove: (k) => m.delete(k) }; };
+
+test("l'application complète fonctionne sur Ragic", async (t) => {
+  const fake = await makeFake();
+  t.after(() => { fake.server.closeAllConnections(); fake.server.close(); });
+  const mails = [];
+  const fetchImpl = async (url, init) => {
+    if (String(url).includes("gmail.googleapis.com")) { mails.push(JSON.parse(init.body)); return { ok: true, status: 200, json: async () => ({ id: "m" }) }; }
+    if (String(url).includes("oauth2.googleapis.com")) return { ok: true, status: 200, json: async () => ({ access_token: "AT", expires_in: 3600 }) };
+    return fetch(url, init);
+  };
+  const vault = memVault();
+  vault.set("ragic_key", "KEY"); vault.set("ragic_host", fake.host);
+  vault.set("google_refresh", "R1"); vault.set("google_profile", JSON.stringify({ email: "dieu@remithollet.fr", name: "Dieu Test", canSend: true }));
+  const svc = new Services({ vault, googleClient: { clientId: "c", clientSecret: "s" }, fetchImpl, ragicProtocol: "http", openExternal: async () => {} });
+  await svc.startStore();
+  assert.equal(svc.state().ready, true, JSON.stringify(svc.state().error));
+  t.after(() => svc.stopStore());
+
+  // données de départ, comme après l'import
+  const st = svc.store;
+  await st.write({ op: "set", coll: "columns", id: "rv", data: { name: "RV", order: 1 } });
+  await st.write({ op: "set", coll: "columns", id: "gaelle", data: { name: "Gaëlle", order: 2 } });
+  await st.write({ op: "set", coll: "types", id: "urgent", data: { name: "Urgent", color: "red", order: 1 } });
+  await st.write({ op: "set", coll: "types", id: "reno", data: { name: "Réno globale", color: "violet", order: 2 } });
+  await st.write({ op: "set", coll: "types", id: "bold", data: { name: "Dessinés", color: "none", order: 3 } });
+  await st.write({ op: "set", coll: "elements", id: "dat", data: { name: "DAT", order: 1 } });
+  await st.write({ op: "set", coll: "tasks", id: "a", data: { person: "rv", order: 1, ref: "JUMIN11-D", types: ["urgent", "reno"], els: { dat: "r" } } });
+  await st.write({ op: "set", coll: "tasks", id: "b", data: { person: "gaelle", order: 0, kind: "sep", label: "Réno globale" } });
+  await st.write({ op: "set", coll: "tasks", id: "c", data: { person: "gaelle", order: 1, ref: "LANDY67-A", types: ["bold"] } });
+  const ops = fake.sheets[config.ragic.operations.path].recs; const o = config.ragic.operations;
+  ops.set(501, { [o.code]: "MONTMARTRE4/6-A", [o.objet]: "Plancher", [o.syndic]: "GAURIAU", [o.adresse]: "4 rue Montmartre" });
+  ops.set(502, { [o.code]: "AUTRE1-A", [o.objet]: "Toiture" });
+
+  const agoa = {
+    state: async () => svc.state(),
+    subscribe: async (coll, cb) => { svc.listeners.add({ snapshot: (c, docs) => c === coll && cb(docs) }); cb(svc.requireStore().docs(coll)); },
+    write: async (w) => { svc.requireSession(); await svc.requireStore().write(w); return true; },
+    searchOperations: (q) => svc.searchOperations(q), sendMail: (m) => svc.sendMail(m),
+    onStatus: () => {}, forgetRagic: async () => {}, signOut: async () => {}
+  };
+  const dom = await JSDOM.fromFile(path.join(__dirname, "..", "renderer", "index.html"), {
+    runScripts: "dangerously", resources: "usable", pretendToBeVisual: true, beforeParse(w) { w.agoa = agoa; }
+  });
+  const w = dom.window, d = w.document;
+  t.after(() => w.close());
+  await sleep(600);
+
+  assert.deepEqual([...d.querySelectorAll(".col h2")].map((x) => x.textContent).slice(0, 2), ["RV", "Gaëlle"]);
+  assert.equal(d.querySelectorAll(".task").length, 2);                       // 2 dossiers, le séparateur n'en est pas un
+  assert.equal(d.querySelectorAll(".sep").length, 1);
+  assert.match(d.querySelector('[data-id="a"]').getAttribute("style"), /--c-red.*--c-violet|--c-violet/);
+  assert.ok(d.querySelector('[data-id="c"]').classList.contains("b"), "type sans couleur = gras");
+  assert.ok(!d.querySelector('[data-id="c"]').classList.contains("typed"));
+  assert.equal(d.querySelectorAll(".pill").length, 1);
+  assert.ok(d.querySelector("#btnAcct"), "pastille du compte");
+  assert.equal(d.querySelector("#btnAcct").textContent, "Dieu");
+
+  // recherche Ragic puis ajout
+  d.querySelector('[data-add="rv"]').click();
+  const inp = d.querySelector(".addinput"); inp.value = "MONTM"; inp.dispatchEvent(new w.Event("input", { bubbles: true }));
+  await sleep(700);
+  assert.match(d.querySelector(".sug").textContent, /MONTMARTRE4\/6-A/);
+  assert.ok(!/AUTRE1/.test(d.querySelector(".sug").textContent));
+  d.querySelector('[data-pick="0"]').click(); await sleep(300);
+  const tasks = () => [...fake.sheets[config.ragic.sheets.tasks.path].recs.values()];
+  const f = st.f.tasks;
+  const added = tasks().find((r) => r[f.ref] === "MONTMARTRE4/6-A");
+  assert.ok(added, "dossier créé dans Ragic"); assert.equal(added[f.person], "rv"); assert.equal(added[f.note], "Plancher"); assert.equal(added[f.ragic], "501");
+
+  // changement de type depuis la fiche
+  d.querySelector('[data-open="a"]').click();
+  d.querySelector('[data-settype="reno"]').click(); await sleep(300);
+  assert.equal(tasks().find((r) => r[f.key] === "a")[f.types], "urgent");
+  d.querySelector("#scrim").click();
+
+  // terminer + à facturer
+  d.querySelector('[data-chk="a"]').click();
+  assert.ok(d.querySelector("#menu [data-archdel]"), "option supprimer");
+  d.querySelector('[data-arch="a|1"]').click(); await sleep(300);
+  let ra = tasks().find((r) => r[f.key] === "a");
+  assert.equal(ra[f.done], "Yes"); assert.equal(ra[f.billing], "À facturer"); assert.match(ra[f.doneAt], /^\d{4}\/\d{2}\/\d{2}$/);
+
+  // envoi de la liste à facturer
+  d.querySelector('[data-person="__bill"]').click();
+  d.querySelector('[data-send="1"]').click(); d.querySelector('[data-sendok="1"]').click(); await sleep(500);
+  assert.equal(mails.length, 1);
+  const raw = Buffer.from(mails[0].raw.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+  assert.match(raw, /To: comptabilite@remithollet\.fr/);
+  assert.match(Buffer.from(raw.match(/Subject: =\?UTF-8\?B\?(.+?)\?=/)[1], "base64").toString("utf8"), /^Liste à facturer n°1/);
+  const lists = [...fake.sheets[config.ragic.sheets.lists.path].recs.values()];
+  assert.equal(lists.length, 1);
+  assert.equal(JSON.parse(lists[0][st.f.lists.items]).n, 1);
+  ra = tasks().find((r) => r[f.key] === "a");
+  assert.equal(ra[f.billed], "1", "le dossier pointe vers la liste n°1");
+
+  // suppression avec fenêtre de confirmation
+  d.querySelector('[data-person="all"]').click();
+  d.querySelector('[data-chk="c"]').click();
+  d.querySelector('#menu [data-archdel]').click();
+  assert.equal(d.querySelector("#dlg").hidden, false);
+  d.querySelector("[data-dlgyes]").click(); await sleep(300);
+  assert.ok(!tasks().find((r) => r[f.key] === "c"), "dossier supprimé dans Ragic");
+
+  // une modification faite dans Ragic par un collègue apparaît à l'écran
+  const rb = tasks().find((r) => r[f.key] === "b"); assert.ok(rb);
+  fake.sheets[config.ragic.sheets.tasks.path].recs.set(900, { [f.key]: "z", [f.kind]: "Dossier", [f.person]: "gaelle", [f.order]: "9", [f.ref]: "AJOUT-COLLEGUE" });
+  await svc.store.refreshAll(); await sleep(150);
+  assert.ok([...d.querySelectorAll(".ref")].some((x) => x.textContent === "AJOUT-COLLEGUE"));
+});
