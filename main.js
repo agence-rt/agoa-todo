@@ -3,6 +3,8 @@ const { app, BrowserWindow, ipcMain, shell, safeStorage, Menu } = require("elect
 const path = require("path");
 const { Vault } = require("./src/vault");
 const { Services, readGoogleClient } = require("./src/services");
+const { createSplash } = require("./src/splash");
+const { runUpdateCheck } = require("./src/updater");
 
 if (!app.requestSingleInstanceLock()) { app.quit(); }
 
@@ -64,7 +66,7 @@ function registerIpc() {
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 1440, height: 900, minWidth: 900, minHeight: 600, backgroundColor: "#FAF9F6", title: "AGOA TD",
+    width: 1440, height: 900, minWidth: 900, minHeight: 600, backgroundColor: "#FAF9F6", title: "AGOA TD", show: false,
     icon: path.join(__dirname, "build", "icon.png"), autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
@@ -76,11 +78,35 @@ function createWindow() {
 }
 
 app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function startup() {
+  const noSplash = process.env.AGOA_NO_SPLASH === "1";
+  const splash = noSplash ? null : createSplash({ BrowserWindow, version: app.getVersion(), rendererDir: RENDERER });
+  const t0 = Date.now();
+  let result = { action: "continue" };
+  if (splash) {
+    let updater = null;
+    if (app.isPackaged) { try { updater = require("electron-updater").autoUpdater; } catch (e) { console.error(e); } }
+    result = await runUpdateCheck({
+      updater: updater || { on() {}, removeListener() {}, checkForUpdates: () => Promise.reject(new Error("indisponible")) },
+      onStatus: (s) => splash.status(s), isPackaged: app.isPackaged && !!updater,
+      checkTimeoutMs: Number(process.env.AGOA_UPDATE_TIMEOUT_MS) || 12000
+    });
+    if (result.action === "restart") {
+      await sleep(900);
+      try { updater.quitAndInstall(false, true); return; } catch (e) { console.error(e); }
+    }
+    splash.status({ text: "Démarrage…", progress: null });
+    const wait = 1200 - (Date.now() - t0); if (wait > 0) await sleep(wait);
+  }
+  createWindow();
+  win.once("ready-to-show", () => { win.show(); if (splash) splash.close(); });
+  boot().catch((e) => console.error(e));
+}
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
   registerIpc();
-  createWindow();
-  boot().catch((e) => console.error(e));
-  app.on("activate", () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
+  await startup();
+  app.on("activate", () => { if (!BrowserWindow.getAllWindows().length) { createWindow(); win.once("ready-to-show", () => win.show()); } });
 });
 app.on("window-all-closed", () => { if (svc) svc.stopStore(); app.quit(); });

@@ -56,6 +56,16 @@ Pour une application de bureau, Google ne considère pas ce « secret » comme c
 - Windows affichera « Windows a protégé votre ordinateur » tant que l'installateur n'est pas signé : *Informations complémentaires → Exécuter quand même*.
   Pour supprimer l'avertissement, il faut un certificat de signature de code (à ajouter dans le workflow).
 
+## Mises à jour automatiques
+
+Au démarrage, un écran de chargement (logo, version) interroge les *Releases* GitHub `agence-rt/agoa-todo` :
+- à jour → l'application s'ouvre ;
+- nouvelle version → elle est téléchargée (barre de progression) puis installée, et l'application redémarre ;
+- hors connexion, dépôt injoignable ou sans release → délai de 12 s maximum, puis l'application s'ouvre normalement.
+
+Pour publier une version : augmenter `version` dans `package.json`, puis `git tag v0.2.0 && git push --tags`. Le workflow joint à la release l'installateur, `latest.yml` et le `.blockmap` (indispensables à la mise à jour).
+Le dépôt et ses releases doivent être **publics** pour que les postes y accèdent sans jeton. Les installateurs n'étant pas signés, l'intégrité repose sur l'empreinte sha512 de `latest.yml` servie en HTTPS.
+
 ## 4. Premier lancement (chaque poste)
 
 1. **Se connecter avec Google** : le navigateur s'ouvre, choisir son compte `@remithollet.fr` et accepter l'envoi de courriels.

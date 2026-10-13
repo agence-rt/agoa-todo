@@ -2,6 +2,7 @@
 /* Lance la vraie application Electron face à un faux Ragic rempli d'exemples, et enregistre une capture.
    xvfb-run -a npx electron --no-sandbox --disable-gpu scripts/electron-demo.js   (AGOA_SHOT_DIR=dossier) */
 process.env.AGOA_INSECURE_VAULT = "1";
+process.env.AGOA_NO_SPLASH = "1";
 const { app } = require("electron");
 const fs = require("fs"); const os = require("os"); const path = require("path");
 const out = process.env.AGOA_SHOT_DIR || fs.mkdtempSync(path.join(os.tmpdir(), "agoa-shot-"));

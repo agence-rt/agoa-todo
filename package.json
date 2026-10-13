@@ -24,11 +24,36 @@
     "appId": "fr.remithollet.agoa-td",
     "productName": "AGOA TD",
     "copyright": "Rémi Thollet Architecte",
-    "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["main.js", "preload.js", "src/**/*", "renderer/**/*", "build/icon.png", "package.json"],
-    "extraResources": [{ "from": "resources/", "to": ".", "filter": ["google-client.json"] }],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "renderer/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/",
+        "to": ".",
+        "filter": [
+          "google-client.json"
+        ]
+      }
+    ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "build/icon.ico"
     },
     "nsis": {
@@ -40,6 +65,16 @@
       "shortcutName": "AGOA TD",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "agence-rt",
+        "repo": "agoa-todo"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
   }
 }

@@ -6,6 +6,7 @@ const fs = require("fs"); const os = require("os"); const path = require("path")
 const out = process.env.AGOA_SHOT_DIR || fs.mkdtempSync(path.join(os.tmpdir(), "agoa-shot-"));
 fs.mkdirSync(out, { recursive: true });
 app.setPath("userData", fs.mkdtempSync(path.join(os.tmpdir(), "agoa-ud-")));
+process.env.AGOA_NO_SPLASH = "1";
 require("../main.js");
 
 app.on("browser-window-created", (_e, win) => {
