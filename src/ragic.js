@@ -32,9 +32,9 @@ class RagicClient {
     } catch (e) {
       throw new RagicError("network", "Ragic est injoignable : " + (e && e.message || e));
     }
-    if (res.status === 401 || res.status === 403) throw new RagicError("auth", "Clé Ragic refusée.", res.status);
-    if (res.status === 404) throw new RagicError("not_found", "Formulaire ou fiche introuvable.", res.status);
-    if (!res.ok) throw new RagicError("http", "Ragic a répondu " + res.status + ".", res.status);
+    if (res.status === 401 || res.status === 403) throw new RagicError("auth", "Clé Ragic refusée ou droits insuffisants sur ce formulaire (" + res.status + ").", res.status);
+    if (res.status === 404) throw new RagicError("not_found", "Formulaire ou fiche introuvable : " + url.split("?")[0].replace(/^https?:\/\/[^/]+/, "") + ".", res.status);
+    if (!res.ok) throw new RagicError("http", "Ragic a répondu " + res.status + " : " + String(text).slice(0, 160), res.status);
     let json;
     try { json = JSON.parse(text); } catch (e) { throw new RagicError("bad_response", "Réponse Ragic illisible (serveur incorrect ?)."); }
     if (json && json.status === "ERROR") {
@@ -63,8 +63,8 @@ class RagicClient {
   /** Crée une fiche. fields : { fieldId: valeur }. Retourne l'identifiant Ragic (rootNodeId). */
   async create(path, fields) {
     const json = await this._call("POST", this.url(path, []), fields);
-    if (!json || !json.rv) throw new RagicError("bad_response", "Ragic n’a pas renvoyé l’identifiant de la fiche créée.");
-    return Number(json.rv);
+    if (!json || json.status !== "SUCCESS" && !json.rv && !json.ragicId) throw new RagicError("bad_response", "Ragic a refusé la création : " + JSON.stringify(json).slice(0, 200));
+    return Number(json.rv || json.ragicId || (json.data && json.data.ragicId)) || null;
   }
 
   async update(path, rid, fields) {

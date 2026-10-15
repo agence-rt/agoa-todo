@@ -216,8 +216,7 @@ class RagicStore extends EventEmitter {
       fields[f.key] = id;
       if (coll === "types" && data.name == null) fields[f.name] = "";
       const rid = await this.client.create(path, fields);
-      const rec = { _ragicId: rid }; Object.entries(fields).forEach(([k, v]) => { rec[k] = v; });
-      this.raw[coll].set(id, { rid, rec });
+      if (rid) { const rec = { _ragicId: rid }; Object.entries(fields).forEach(([k, v]) => { rec[k] = v; }); this.raw[coll].set(id, { rid, rec }); }
     } else if (op === "update") {
       if (!ent) throw Object.assign(new Error("Fiche introuvable."), { code: "not_found" });
       const fields = this.toFields(coll, data, false, ent.rec);

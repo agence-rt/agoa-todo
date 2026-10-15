@@ -404,7 +404,7 @@ button { cursor: pointer; }
 
   /* ---------- écriture ---------- */
   function toast(msg) { var t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function () { t.hidden = true; }, 4200); }
-  function writeError(e) { toast(e && e.code === "invalid_argument" ? "Modification refusée : droits d’écriture insuffisants." : "L’enregistrement a échoué. Réessayez dans un instant."); }
+  function writeError(e) { toast("L’enregistrement a échoué" + (e && e.message ? " — " + e.message : ". Réessayez dans un instant.")); }
   function flush(key) {
     if (inflight.has(key) || !pending.has(key) || !state.db) return;
     var p = pending.get(key), parts = key.split("/");
@@ -528,7 +528,7 @@ button { cursor: pointer; }
       return h;
     }
     if (a.status === "done") h += '<li class="sug-msg">Aucune référence Ragic ne correspond à « ' + esc(q) + ' ».</li>';
-    else if (a.status === "error") h += '<li class="sug-msg">' + esc(mcpMsg(a.err, "Ragic")) + ' Saisie manuelle possible.</li>';
+    else if (a.status === "error") h += '<li class="sug-msg">' + esc(mcpMsg(a.err, "Ragic")) + (a.msg ? ' (' + esc(a.msg) + ')' : '') + ' Saisie manuelle possible.</li>';
     else return "";
     return h + '<li><button type="button" class="sug-manual" data-manual="1">Saisie manuelle : « ' + esc(q) + ' »</button></li>';
   }
@@ -626,7 +626,7 @@ button { cursor: pointer; }
   function doSearch(q) {
     var a = state.adding, seq = ++state.seq;
     return ragicSearch(q).then(function (r) { if (seq !== state.seq || state.adding !== a) return; a.results = r; a.status = "done"; a.idx = 0; a.err = null; })
-      .catch(function (e) { if (seq !== state.seq || state.adding !== a) return; a.results = []; a.status = "error"; a.err = (e && e.code) || "error"; })
+      .catch(function (e) { if (seq !== state.seq || state.adding !== a) return; a.results = []; a.status = "error"; a.err = (e && e.code) || "error"; a.msg = (e && e.message) || ""; })
       .then(updateSug);
   }
   function onAddInput() {
