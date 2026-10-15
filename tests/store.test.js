@@ -26,22 +26,24 @@ test("client : clé refusée -> erreur auth ; détection du serveur", async () =
   await assert.rejects(() => detectHost("NOPE", { apname: "agoa", hosts: [fake.host], probePath: P.tasks.path, protocol: "http" }), (e) => e.code === "auth");
 });
 
-test("init : champs résolus par libellé ; erreur claire si « Clé » manque", async () => {
+test("init : champs résolus par libellé, identifiants par défaut en secours", async () => {
   const { fake, store } = await setup();
   await store.init();
-  assert.ok(store.f.tasks.key >= 9000000, "Clé trouvée via le schéma");
+  assert.equal(store.f.tasks.key, 1003122, "Clé résolue");
   assert.equal(store.f.tasks.ref, 1003101);
 
   const fake2 = await makeFake(); fakes.push(fake2);
   fake2.schema[P.types.path] = fake2.schema[P.types.path].filter((f) => f.fieldName !== "Nom");
   const client = new RagicClient({ host: fake2.host, apname: "agoa", apiKey: "KEY", protocol: "http" });
   const st = new RagicStore({ client, config });
-  await assert.rejects(() => st.init(), (e) => e.code === "missing_field" && /Nom/.test(e.message) && /rendez-vous\/7/.test(e.message));
+  await st.init();   // « Nom » absent du schéma : l'identifiant par défaut prend le relais
+  assert.equal(st.f.types.name, 1003118);
 });
 
-test("sans accès au schéma : retombe sur les identifiants par défaut (Clé manquante -> erreur claire)", async () => {
+test("sans accès au schéma (clé non gestionnaire) : retombe sur les identifiants par défaut, « Clé » comprise", async () => {
   const { fake, store } = await setup({ withSchema: false });
-  await assert.rejects(() => store.init(), (e) => e.code === "missing_field" && /Clé/.test(e.message));
+  await store.init();
+  assert.equal(store.f.columns.key, 1003120); assert.equal(store.f.tasks.key, 1003122); assert.equal(store.f.lists.key, 1003123);
 });
 
 test("création / mise à jour / suppression d'un dossier et conversions", async () => {
@@ -133,4 +135,9 @@ test("clé valide mais sans droit sur la feuille : message clair, pas « invité
     return { status: 200, ok: true, headers: { get: () => null }, text: async () => JSON.stringify({ status: "ERROR", code: 403, msg }) };
   };
   await assert.rejects(() => detectHost("K", { apname: "agoa", hosts: ["www.ragic.com", "eu2.ragic.com", "ap5.ragic.com"], probePath: "/rendez-vous/9", fetchImpl }), /paul@remithollet\.fr.*n’a pas accès/);
+});
+
+test("tous les champs ont un identifiant par défaut (clé non gestionnaire : pas de schéma Ragic)", () => {
+  for (const [coll, sh] of Object.entries(config.ragic.sheets))
+    for (const [k, d] of Object.entries(sh.fields)) assert.ok(d.id, coll + "." + k + " sans identifiant");
 });

@@ -19,13 +19,13 @@ module.exports = {
     },
     sheets: {
       columns:  { path: "/rendez-vous/6",  fields: {
-        key: { label: "Clé" }, name: { label: "Nom", id: 1003085 }, order: { label: "Ordre", id: 1003086 } } },
+        key: { label: "Clé", id: 1003120 }, name: { label: "Nom", id: 1003085 }, order: { label: "Ordre", id: 1003086 } } },
       types:    { path: "/rendez-vous/7",  fields: {
-        key: { label: "Clé" }, name: { label: "Nom" }, color: { label: "Couleur", id: 1003089 }, order: { label: "Ordre", id: 1003090 } } },
+        key: { label: "Clé", id: 1003119 }, name: { label: "Nom", id: 1003118 }, color: { label: "Couleur", id: 1003089 }, order: { label: "Ordre", id: 1003090 } } },
       elements: { path: "/rendez-vous/8",  fields: {
-        key: { label: "Clé" }, name: { label: "Nom", id: 1003093 }, order: { label: "Ordre", id: 1003094 } } },
+        key: { label: "Clé", id: 1003121 }, name: { label: "Nom", id: 1003093 }, order: { label: "Ordre", id: 1003094 } } },
       tasks:    { path: "/rendez-vous/9",  fields: {
-        key: { label: "Clé" },
+        key: { label: "Clé", id: 1003122 },
         kind: { label: "Nature", id: 1003097 }, person: { label: "Colonne", id: 1003100 }, order: { label: "Ordre", id: 1003098 },
         ref: { label: "Référence", id: 1003101 }, note: { label: "Note", id: 1003102 },
         types: { label: "Types", id: 1003103 }, els: { label: "Éléments", id: 1003104 },
@@ -34,7 +34,7 @@ module.exports = {
         billing: { label: "Facturation", id: 1003109 }, billed: { label: "N° de liste", id: 1003110 },
         ragic: { label: "Id opération Ragic", id: 1003111 } } },
       lists:    { path: "/rendez-vous/10", fields: {
-        key: { label: "Clé" }, sentAt: { label: "Date d’envoi", id: 1003116 },
+        key: { label: "Clé", id: 1003123 }, sentAt: { label: "Date d’envoi", id: 1003116 },
         count: { label: "Nombre de dossiers", id: 1003114 }, items: { label: "Contenu", id: 1003117 } } }
     }
   }
