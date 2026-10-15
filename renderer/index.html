@@ -197,6 +197,11 @@ button { cursor: pointer; }
 
 .hist { margin: 26px -10px -12px; padding: 12px 10px 14px; background: var(--arch); border-top: 1px solid var(--line); border-radius: 0 0 var(--radius) var(--radius); display: flex; flex-direction: column; gap: 6px; }
 .hist .task.done { background: var(--card); }
+.hist.closed { padding-top: 8px; padding-bottom: 8px; }
+.hist-t { display: flex; align-items: center; gap: 8px; width: 100%; margin: 0; padding: 2px 0; background: none; border: 0; text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-soft); font-weight: 700; }
+.hist-t i { font-style: normal; font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: auto; font-variant-numeric: tabular-nums; }
+.hist-t .chev { transition: transform .15s; }
+.hist-t[aria-expanded="true"] .chev { transform: rotate(90deg); }
 .hist h3 { margin: 0; font-size: 11.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-soft); }
 .wk { font-size: 11.5px; color: var(--ink-soft); display: flex; align-items: center; gap: 8px; margin-top: 2px; }
 .wk::after { content: ""; flex: 1; height: 1px; background: var(--line); }
@@ -338,7 +343,7 @@ button { cursor: pointer; }
     got: {}, error: null, db: null,
     filter: new Set(), q: "", person: LS.get("agoa.td.person") || "all",
     openId: null, adding: null, addingSep: null, editSep: null, colMenu: null, addCol: false,
-    expanded: new Set(), armed: null, menu: null, sendStep: 0, newType: { color: "orange" }, typeOpen: false, dragId: null, seq: 0
+    expanded: new Set(), archOpen: new Set(), armed: null, menu: null, sendStep: 0, newType: { color: "orange" }, typeOpen: false, dragId: null, seq: 0
   };
   var pending = new Map(), timers = new Map(), inflight = new Set(), armTimer = null, sendTimer = null, searchTimer = null;
 
@@ -558,10 +563,13 @@ button { cursor: pointer; }
       h += '<div class="acts"><button class="addbtn" data-add="' + esc(c.id) + '">+ Ajouter un dossier</button><button class="addbtn small" data-addsep="' + esc(c.id) + '">+ Séparateur</button></div>';
     }
     var weeks = doneWeeks(c.id);
-    h += '<div class="hist"><h3>Archives · dernier mois</h3>';
+    var nArch = weeks.reduce(function (n, w) { return n + w.items.length; }, 0), aKey = "p:" + c.id, aOpen = state.archOpen.has(aKey);
+    h += '<div class="hist' + (aOpen ? "" : " closed") + '"><button class="hist-t" data-arch-toggle="' + esc(aKey) + '" aria-expanded="' + aOpen + '"><span class="chev" aria-hidden="true">▸</span>Archives · dernier mois<i>' + nArch + ' terminé' + (nArch > 1 ? "s" : "") + '</i></button>';
+    if (aOpen) {
     weeks.forEach(function (w) {
       h += '<div class="wk">Semaine ' + w.n + w.label + '</div>' + (w.items.length ? '<ul class="list">' + w.items.map(function (t) { return doneHTML(t); }).join("") + '</ul>' : '<div class="empty">Aucun terminé cette semaine.</div>');
     });
+    }
     return h + '</div></section>';
   }
   function billColHTML() {
@@ -575,7 +583,9 @@ button { cursor: pointer; }
     h += pend.length ? '<ul class="list">' + pend.map(function (t) {
       return '<li class="billrow"><button class="open" data-open="' + esc(t.id) + '"><span class="line1"><span class="ref">' + esc(t.ref) + '</span></span>' + (t.note ? '<span class="note">' + esc(t.note) + '</span>' : '') + '<span class="note">' + esc(colName(t.person)) + ' · terminé le ' + esc(fr(t.doneAt)) + '</span></button><button class="mini" data-unbill="' + esc(t.id) + '" aria-label="Retirer de la liste à facturer : ' + esc(t.ref) + '" title="Retirer de la liste">×</button></li>';
     }).join("") + '</ul>' : '<div class="empty">Rien à facturer pour l’instant.</div>';
-    h += '<div class="hist"><h3>Listes envoyées · dernier mois</h3>';
+    var aOpenB = state.archOpen.has("bill");
+    h += '<div class="hist' + (aOpenB ? "" : " closed") + '"><button class="hist-t" data-arch-toggle="bill" aria-expanded="' + aOpenB + '"><span class="chev" aria-hidden="true">▸</span>Listes envoyées · dernier mois<i>' + lists.length + ' liste' + (lists.length > 1 ? "s" : "") + '</i></button>';
+    if (aOpenB) {
     if (!lists.length) h += '<div class="empty">Aucune liste envoyée ce dernier mois.</div>';
     lists.forEach(function (L) {
       var ex = state.expanded.has(L.id);
@@ -583,6 +593,7 @@ button { cursor: pointer; }
       if (ex) h += '<ul class="litems">' + (L.items || []).map(function (it) { return '<li><b>' + esc(it.ref) + '</b>' + (it.note ? ' — ' + esc(it.note) : '') + '<div class="m">' + esc(it.col || "") + (it.doneAt ? ' · terminé le ' + esc(fr(it.doneAt)) : '') + '</div></li>'; }).join("") + '</ul>';
       h += '</div>';
     });
+    }
     return h + '</div></section>';
   }
   function renderBoard() {
@@ -869,6 +880,7 @@ button { cursor: pointer; }
     if (e.target.closest("[data-sendno]")) { state.sendStep = 0; renderBoard(); return; }
     if (e.target.closest("[data-sendok]")) { clearTimeout(sendTimer); sendBilling(); return; }
     if ((b = e.target.closest("[data-unbill]"))) { edit("tasks", b.dataset.unbill, { billing: "none" }); return; }
+    if ((b = e.target.closest("[data-arch-toggle]"))) { var ak = b.dataset.archToggle; if (state.archOpen.has(ak)) state.archOpen.delete(ak); else state.archOpen.add(ak); renderBoard(); return; }
     if ((b = e.target.closest("[data-lst]"))) { var id = b.dataset.lst; if (state.expanded.has(id)) state.expanded.delete(id); else state.expanded.add(id); renderBoard(); }
   });
   board.addEventListener("input", function (e) { if (e.target.classList.contains("addinput") && state.adding) { state.adding.v = e.target.value; onAddInput(); } });

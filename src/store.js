@@ -87,15 +87,19 @@ class RagicStore extends EventEmitter {
   async fetchColl(coll) {
     const recs = await this.client.list(this.cfg.sheets[coll].path);
     const m = new Map();
-    recs.forEach((r) => m.set(this.keyOf(coll, r), { rid: r._ragicId, rec: r }));
+    const ids = Object.values(this.f[coll]);
+    recs.forEach((r) => {
+      if (ids.every((id) => r[id] == null || String(r[id]).trim() === "")) return;   // fiche vide (résidu d'un essai) : ignorée
+      m.set(this.keyOf(coll, r), { rid: r._ragicId, rec: r });
+    });
     return m;
   }
   sigOf(m) { return JSON.stringify([...m.entries()].map(([k, v]) => [k, v.rid, v.rec]).sort((a, b) => (a[0] < b[0] ? -1 : 1))); }
 
   async refreshAll() {
-    const next = {};
+    const next = {}, v0 = this.wver || 0;
     for (const c of COLLS) next[c] = await this.fetchColl(c);
-    if (this.busy) return;                       // une écriture a eu lieu pendant la lecture : on garde l'état local
+    if (this.busy || (this.wver || 0) !== v0) return;   // une écriture a eu lieu pendant la lecture : cette lecture est périmée, on garde l'état local
     const changed = new Set();
     for (const c of COLLS) { const s = this.sigOf(next[c]); if (s !== this.sig[c]) { this.sig[c] = s; this.raw[c] = next[c]; changed.add(c); } }
     if (changed.has("lists")) changed.add("tasks");
@@ -199,7 +203,7 @@ class RagicStore extends EventEmitter {
     try {
       return await this._serial(coll + "/" + id, () => this._write(op, coll, id, data || {}));
     } finally {
-      this.busy--;
+      this.busy--; this.wver = (this.wver || 0) + 1;
       if (!this.busy) setTimeout(() => { if (!this.stopped && !this.busy && !this.refreshing) this.refreshAll().catch(() => {}); }, 1500);
     }
   }
@@ -209,6 +213,10 @@ class RagicStore extends EventEmitter {
     if (coll === "tasks" && data.billed) {            // la liste doit exister avant qu'un dossier y fasse référence
       const pendingList = this.locks.get("lists/" + data.billed);
       if (pendingList) await pendingList.catch(() => {});
+      if (!this.listNByKey(data.billed)) {              // liste absente de l'état local (lecture périmée) : on la relit dans Ragic
+        const lists = await this.fetchColl("lists"); lists.forEach((v, k) => this.raw.lists.set(k, v));
+        if (!this.listNByKey(data.billed)) throw Object.assign(new Error("La liste envoyée est introuvable dans Ragic : le dossier n’a pas pu y être rattaché."), { code: "list_missing" });
+      }
     }
     const ent = this.raw[coll].get(id);
     if (op === "set") {

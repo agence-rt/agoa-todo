@@ -141,3 +141,15 @@ test("tous les champs ont un identifiant par défaut (clé non gestionnaire : pa
   for (const [coll, sh] of Object.entries(config.ragic.sheets))
     for (const [k, d] of Object.entries(sh.fields)) assert.ok(d.id, coll + "." + k + " sans identifiant");
 });
+
+test("rattacher un dossier à une liste absente de l'état local : relecture, puis erreur claire (jamais d'écriture vide)", async () => {
+  const { fake, store } = await setup();
+  await store.init();
+  await store.write({ op: "set", coll: "columns", id: "rv", data: { name: "RV", order: 1 } });
+  await store.write({ op: "set", coll: "tasks", id: "a", data: { person: "rv", order: 1, ref: "X", done: true, doneAt: "2026-10-15", billing: "tobill" } });
+  await store.write({ op: "set", coll: "lists", id: "L1", data: { n: 1, sentAt: new Date().toISOString(), items: [] } });
+  store.raw.lists.delete("L1");                     // état local périmé
+  await store.write({ op: "update", coll: "tasks", id: "a", data: { billed: "L1" } });
+  assert.equal(store.docs("tasks").find((d) => d.id === "a").data.billed, "L1");
+  await assert.rejects(() => store.write({ op: "update", coll: "tasks", id: "a", data: { billed: "NOPE" } }), (e) => e.code === "list_missing");
+});
