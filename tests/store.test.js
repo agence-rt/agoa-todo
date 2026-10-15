@@ -109,3 +109,16 @@ test("mise à jour d'une fiche inconnue : erreur not_found", async () => {
   await store.init();
   await assert.rejects(() => store.write({ op: "update", coll: "tasks", id: "nope", data: { note: "x" } }), (e) => e.code === "not_found");
 });
+
+test("Ragic qui refuse (status INVALID) : le message de Ragic remonte", async () => {
+  const { RagicClient } = require("../src/ragic");
+  const fetch = async () => ({ ok: true, status: 200, text: async () => JSON.stringify({ status: "INVALID", msg: "Le champ « CLé » est obligatoire." }) });
+  const c = new RagicClient({ host: "www.ragic.com", apname: "agoa", apiKey: "K", fetchImpl: fetch });
+  await assert.rejects(() => c.create("/rendez-vous/6", { 1: "x" }), /obligatoire/);
+});
+test("Ragic qui répond sans identifiant : la réponse brute est indiquée", async () => {
+  const { RagicClient } = require("../src/ragic");
+  const fetch = async () => ({ ok: true, status: 200, text: async () => "{}" });
+  const c = new RagicClient({ host: "www.ragic.com", apname: "agoa", apiKey: "K", fetchImpl: fetch });
+  await assert.rejects(() => c.create("/rendez-vous/6", { 1: "x" }), /réponse : \{\}/);
+});

@@ -37,9 +37,9 @@ class RagicClient {
     if (!res.ok) throw new RagicError("http", "Ragic a répondu " + res.status + ".", res.status);
     let json;
     try { json = JSON.parse(text); } catch (e) { throw new RagicError("bad_response", "Réponse Ragic illisible (serveur incorrect ?)."); }
-    if (json && json.status === "ERROR") {
+    if (json && typeof json.status === "string" && json.status !== "SUCCESS") {   // ERROR, INVALID… : Ragic refuse
       if (String(json.code) === "204" && tries > 1) { await sleep(1200); return this._call(method, url, body, tries - 1); }
-      throw new RagicError(String(json.code || "ragic"), json.msg || "Erreur Ragic.");
+      throw new RagicError(String(json.code || json.status.toLowerCase() || "ragic"), json.msg || json.message || ("Ragic a refusé la requête (" + json.status + ")."));
     }
     return json;
   }
@@ -63,7 +63,7 @@ class RagicClient {
   /** Crée une fiche. fields : { fieldId: valeur }. Retourne l'identifiant Ragic (rootNodeId). */
   async create(path, fields) {
     const json = await this._call("POST", this.url(path, []), fields);
-    if (!json || !json.rv) throw new RagicError("bad_response", "Ragic n’a pas renvoyé l’identifiant de la fiche créée.");
+    if (!json || !json.rv) throw new RagicError("bad_response", "Ragic n’a pas renvoyé l’identifiant de la fiche créée (réponse : " + JSON.stringify(json).slice(0, 200) + ").");
     return Number(json.rv);
   }
 

@@ -404,7 +404,7 @@ button { cursor: pointer; }
 
   /* ---------- écriture ---------- */
   function toast(msg) { var t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function () { t.hidden = true; }, 4200); }
-  function writeError(e) { toast(e && e.code === "invalid_argument" ? "Modification refusée : droits d’écriture insuffisants." : "L’enregistrement a échoué. Réessayez dans un instant."); }
+  function writeError(e) { var m = e && e.message ? " — " + String(e.message).slice(0, 220) : ""; toast(e && e.code === "invalid_argument" ? "Modification refusée : droits d’écriture insuffisants." : "L’enregistrement a échoué" + m + (m ? "" : ". Réessayez dans un instant.")); }
   function flush(key) {
     if (inflight.has(key) || !pending.has(key) || !state.db) return;
     var p = pending.get(key), parts = key.split("/");
