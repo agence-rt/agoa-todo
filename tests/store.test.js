@@ -124,3 +124,13 @@ test("redirection Ragic : le POST reste un POST et suit le bon serveur", async (
   assert.equal(calls[1][2], "1003085=RV");
   assert.equal(c.host, "eu2.ragic.com");
 });
+
+test("clé valide mais sans droit sur la feuille : message clair, pas « invité » du dernier serveur", async () => {
+  const { detectHost } = require("../src/ragic");
+  const fetchImpl = async (url) => {
+    const h = new URL(url).host;
+    const msg = h === "eu2.ragic.com" ? "This sheet is access right protected. You are currently accessing as: paul@remithollet.fr" : "This sheet is access right protected. You are currently accessing as: guest account";
+    return { status: 200, ok: true, headers: { get: () => null }, text: async () => JSON.stringify({ status: "ERROR", code: 403, msg }) };
+  };
+  await assert.rejects(() => detectHost("K", { apname: "agoa", hosts: ["www.ragic.com", "eu2.ragic.com", "ap5.ragic.com"], probePath: "/rendez-vous/9", fetchImpl }), /paul@remithollet\.fr.*n’a pas accès/);
+});

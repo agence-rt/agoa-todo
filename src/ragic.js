@@ -50,6 +50,8 @@ class RagicClient {
     if (json && json.status === "ERROR") {
       if (String(json.code) === "204" && tries > 1) { await sleep(1200); return this._call(method, url, body, tries - 1); }
       if (/guest account|accessing as: guest/i.test(String(json.msg || ""))) throw new RagicError("guest", "Ragic ne reconnaît pas cette clé API (accès « invité »). Recopiez-la en entier depuis Ragic (Compte > API), sans espace ni retour à la ligne.");
+      const who = /accessing as:\s*([^\s.]+@[^\s.]+\.[^\s]+)/i.exec(String(json.msg || ""));
+      if (/access right protected/i.test(String(json.msg || "")) && who) throw new RagicError("rights", "Cette clé appartient à " + who[1].replace(/[.,;]$/, "") + ", qui n’a pas accès aux formulaires AGOA TD. Dans Ragic, donnez à cet utilisateur (ou à son groupe) les droits d’accès aux 5 formulaires « TD … », ou utilisez la clé partagée de l’agence.");
       throw new RagicError(String(json.code || "ragic"), json.msg || "Erreur Ragic.");
     }
     return json;
@@ -95,18 +97,18 @@ class RagicClient {
 
 /** Cherche le bon serveur Ragic parmi les serveurs connus. Retourne le nom d'hôte, ou lève une erreur. */
 async function detectHost(apiKey, { apname, hosts, probePath, fetchImpl, protocol }) {
-  let lastErr = null;
+  let lastErr = null, guestErr = null;
   for (const host of hosts) {
     try {
       const c = new RagicClient({ host, apname, apiKey, fetchImpl, protocol });
       await c._call("GET", c.url(probePath, [["limit", 1], ["naming", "EID"]]), null, 1);
       return c.host;      // le serveur réel, si Ragic nous a redirigés
     } catch (e) {
-      lastErr = e;
+      if (e.code === "guest") guestErr = guestErr || e; else lastErr = e;   // « invité » est normal sur un serveur qui n'est pas le bon : on garde l'erreur la plus parlante
       if (e.code === "auth") break;       // la clé est refusée : inutile d'essayer les autres serveurs
     }
   }
-  throw lastErr || new RagicError("network", "Aucun serveur Ragic ne répond.");
+  throw lastErr || guestErr || new RagicError("network", "Aucun serveur Ragic ne répond.");
 }
 
 module.exports = { RagicClient, RagicError, detectHost };
