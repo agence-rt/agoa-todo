@@ -20,14 +20,24 @@ class RagicClient {
     return u;
   }
 
-  async _call(method, url, body, tries = 3) {
+  async _call(method, url, body, tries = 3, hops = 0) {
     let res, text;
     try {
+      /* Redirections gérées ici : un navigateur/fetch qui suit une redirection 301/302 transforme un POST en GET,
+         et Ragic répond alors par la liste de la feuille (« {} » si elle est vide) au lieu de créer la fiche. */
       res = await this.fetch(url, {
-        method,
+        method, redirect: "manual",
         headers: body ? { "Content-Type": "application/x-www-form-urlencoded" } : undefined,
         body: body ? new URLSearchParams(body).toString() : undefined
       });
+      if (res.status >= 300 && res.status < 400 && res.headers && res.headers.get && res.headers.get("location")) {
+        if (hops >= 3) throw new Error("trop de redirections");
+        const next = new URL(res.headers.get("location"), url);
+        const orig = new URL(url);
+        if (!/(^|\.)ragic\.com$/i.test(next.hostname) && next.hostname !== orig.hostname) throw new Error("redirection vers un serveur inattendu (" + next.hostname + ")");
+        if (next.hostname !== orig.hostname) { this.host = next.host; orig.host = next.host; }
+        return this._call(method, orig.toString(), body, tries, hops + 1);   // même méthode, même corps, même chemin
+      }
       text = await res.text();
     } catch (e) {
       throw new RagicError("network", "Ragic est injoignable : " + (e && e.message || e));
@@ -89,7 +99,7 @@ async function detectHost(apiKey, { apname, hosts, probePath, fetchImpl, protoco
     try {
       const c = new RagicClient({ host, apname, apiKey, fetchImpl, protocol });
       await c._call("GET", c.url(probePath, [["limit", 1], ["naming", "EID"]]), null, 1);
-      return host;
+      return c.host;      // le serveur réel, si Ragic nous a redirigés
     } catch (e) {
       lastErr = e;
       if (e.code === "auth") break;       // la clé est refusée : inutile d'essayer les autres serveurs

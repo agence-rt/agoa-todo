@@ -109,3 +109,18 @@ test("mise à jour d'une fiche inconnue : erreur not_found", async () => {
   await store.init();
   await assert.rejects(() => store.write({ op: "update", coll: "tasks", id: "nope", data: { note: "x" } }), (e) => e.code === "not_found");
 });
+
+test("redirection Ragic : le POST reste un POST et suit le bon serveur", async () => {
+  const { RagicClient } = require("../src/ragic");
+  const calls = [];
+  const fetchImpl = async (url, o) => {
+    calls.push([o.method, new URL(url).host, o.body]);
+    if (new URL(url).host === "www.ragic.com") return { status: 302, ok: false, headers: { get: () => "https://eu2.ragic.com/agoa/rendez-vous/6?api&v=3&APIKey=K" }, text: async () => "" };
+    return { status: 200, ok: true, headers: { get: () => null }, text: async () => JSON.stringify({ status: "SUCCESS", rv: "77" }) };
+  };
+  const c = new RagicClient({ host: "www.ragic.com", apname: "agoa", apiKey: "K", fetchImpl });
+  assert.equal(await c.create("/rendez-vous/6", { 1003085: "RV" }), 77);
+  assert.deepEqual(calls.map((x) => x[0] + " " + x[1]), ["POST www.ragic.com", "POST eu2.ragic.com"]);
+  assert.equal(calls[1][2], "1003085=RV");
+  assert.equal(c.host, "eu2.ragic.com");
+});
