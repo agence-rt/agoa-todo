@@ -32,6 +32,9 @@ app.setPath("userData", ud);
     ["gaelle", "LANDY67-A", "", ["urgent", "reno", "struct"], {}], ["marie", "GERMAIN3-D", "", ["draw"], {}], ["hernan", "VESALE9-C", "façade cour", [], { dat: "g" }]];
   for (let i = 0; i < T.length; i++) await w("tasks", "t" + i, { person: T[i][0], order: i, ref: T[i][1], note: T[i][2], types: T[i][3], els: T[i][4] });
   await w("tasks", "s1", { kind: "sep", label: "Études", person: "gaelle", order: 9 });
+  const day = (n) => { const d = new Date(Date.now() - n * 864e5); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+  const D = [["gaelle", "OLD1-A", 45], ["gaelle", "MONTH1-B", 25], ["gaelle", "WEEK1-C", 8], ["gaelle", "NOW1-D", 1]];
+  for (let i = 0; i < D.length; i++) await w("tasks", "d" + i, { person: D[i][0], order: 50 + i, ref: D[i][1], note: "", types: [], els: {}, done: true, doneAt: day(D[i][2]), billing: "none" });
   st.stop();
 
   const vault = new Vault(path.join(ud, "vault.json"), { encrypt: (s) => Buffer.from(s, "utf8"), decrypt: (b) => b.toString("utf8") });

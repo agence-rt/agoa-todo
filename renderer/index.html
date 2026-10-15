@@ -20,6 +20,8 @@
   --card: #ffffff;
   --line: #e3e0d8;
   --soft: #f1f0eb;
+  --arch: #ecebe6;
+  --sep-bg: #fdf3c4;
   --hover: #f4f2ec;
   --tint-red: #fdeceb;
   --radius: 6px;
@@ -37,7 +39,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --red: #8F1420; --red-dark: #6e0e17; --teal-ink: #86c9cc; --ink: #ECE9E2; --ink-soft: #A8A59D;
-    --paper: #161616; --card: #1f1f1f; --line: #343434; --soft: #2a2a2a; --hover: #262626; --tint-red: #3a1d20;
+    --paper: #161616; --card: #1f1f1f; --line: #343434; --soft: #2a2a2a; --arch: #2b2b2a; --sep-bg: #4a4220; --hover: #262626; --tint-red: #3a1d20;
     --c-red: #F0746B; --c-orange: #E5A04A; --c-violet: #A58BE0; --c-blue: #6FA6E3; --c-green: #6FBF86; --c-teal: #5FB0B4; --c-gray: #9A9A9A;
     --el-r: #F0746B; --el-g: #6FBF86;
     color-scheme: dark;
@@ -165,12 +167,12 @@ button { cursor: pointer; }
 .task.before::before, .sep.before::before { top: -3px; }
 .task.after::after, .sep.after::after { bottom: -3px; }
 
-.sep { position: relative; display: flex; align-items: center; gap: 8px; margin: 6px 0 2px; }
-.sep .lbl { background: none; border: 0; padding: 0; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--teal-ink); text-align: left; }
-.sep .rule { flex: 1; height: 1px; background: var(--teal); opacity: .5; }
-.sep .x { border: 0; background: none; color: var(--ink-soft); font-size: 15px; line-height: 1; padding: 0 3px; opacity: .5; }
+.sep { position: relative; display: flex; align-items: center; justify-content: center; margin: 6px 0 2px; padding: 5px 26px; background: var(--sep-bg); border-radius: 3px; }
+.sep .lbl { background: none; border: 0; padding: 0; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--ink); text-align: center; }
+.sep .rule { display: none; }
+.sep .x { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); border: 0; background: none; color: var(--ink-soft); font-size: 15px; line-height: 1; padding: 0 3px; opacity: .5; }
 .sep:hover .x { opacity: 1; }
-.sep input { flex: 1; padding: 3px 7px; border: 1px solid var(--teal); border-radius: var(--radius); background: var(--card); font-size: 12.5px; }
+.sep input { flex: 1; text-align: center; padding: 3px 7px; border: 1px solid var(--teal); border-radius: var(--radius); background: var(--card); font-size: 12.5px; }
 
 .acts { display: flex; gap: 6px; flex-wrap: wrap; }
 .addbtn { flex: 1; text-align: left; background: none; border: 1px dashed var(--line); border-radius: 4px; padding: 6px 8px; color: var(--ink-soft); font-size: 13px; }
@@ -192,7 +194,8 @@ button { cursor: pointer; }
 .sug-manual { color: var(--teal-ink); font-size: 12.5px; font-weight: 600; }
 .sug-manual.alt { font-weight: 400; color: var(--ink-soft); }
 
-.hist { margin-top: 6px; border-top: 2px solid var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.hist { margin: 26px -10px -12px; padding: 12px 10px 14px; background: var(--arch); border-top: 1px solid var(--line); border-radius: 0 0 var(--radius) var(--radius); display: flex; flex-direction: column; gap: 6px; }
+.hist .task.done { background: var(--card); }
 .hist h3 { margin: 0; font-size: 11.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-soft); }
 .wk { font-size: 11.5px; color: var(--ink-soft); display: flex; align-items: center; gap: 8px; margin-top: 2px; }
 .wk::after { content: ""; flex: 1; height: 1px; background: var(--line); }
@@ -385,15 +388,18 @@ button { cursor: pointer; }
     if (state.q && norm((t.ref || "") + " " + (t.note || "")).indexOf(norm(state.q)) < 0) return false;
     return true;
   }
-  function doneBuckets(cid) {
-    var m0 = monday(today()), m1 = shiftDays(m0, -7);
-    var done = arr(state.d.tasks).filter(function (t) { return t.person === cid && t.done && t.doneAt && !isSep(t); });
+  var HIST_DAYS = 31; /* historique conservé et affiché : 1 mois */
+  function doneWeeks(cid) {
+    var m0 = monday(today()), m1 = shiftDays(m0, -7), cut = shiftDays(today(), -HIST_DAYS), map = {};
+    arr(state.d.tasks).forEach(function (t) {
+      if (t.person !== cid || !t.done || !t.doneAt || isSep(t) || t.doneAt < cut) return;
+      (map[monday(t.doneAt)] = map[monday(t.doneAt)] || []).push(t);
+    });
+    map[m0] = map[m0] || [];
     var srt = function (a, b) { return a.doneAt < b.doneAt ? 1 : a.doneAt > b.doneAt ? -1 : 0; };
-    return {
-      w0: done.filter(function (t) { return monday(t.doneAt) === m0; }).sort(srt),
-      w1: done.filter(function (t) { return monday(t.doneAt) === m1; }).sort(srt),
-      n0: weekOf(m0), n1: weekOf(m1)
-    };
+    return Object.keys(map).sort().reverse().map(function (m) {
+      return { n: weekOf(m), items: map[m].sort(srt), label: m === m0 ? " · en cours" : m === m1 ? " · précédente" : "", cur: m === m0 };
+    });
   }
 
   /* ---------- écriture ---------- */
@@ -550,14 +556,15 @@ button { cursor: pointer; }
     } else {
       h += '<div class="acts"><button class="addbtn" data-add="' + esc(c.id) + '">+ Ajouter un dossier</button><button class="addbtn small" data-addsep="' + esc(c.id) + '">+ Séparateur</button></div>';
     }
-    var b = doneBuckets(c.id);
-    h += '<div class="hist"><h3>Terminés · deux dernières semaines</h3>';
-    h += '<div class="wk">Semaine ' + b.n0 + ' · en cours</div>' + (b.w0.length ? '<ul class="list">' + b.w0.map(function (t) { return doneHTML(t); }).join("") + '</ul>' : '<div class="empty">Aucun terminé cette semaine.</div>');
-    h += '<div class="wk">Semaine ' + b.n1 + ' · précédente</div>' + (b.w1.length ? '<ul class="list">' + b.w1.map(function (t) { return doneHTML(t); }).join("") + '</ul>' : '<div class="empty">Aucun terminé la semaine précédente.</div>');
+    var weeks = doneWeeks(c.id);
+    h += '<div class="hist"><h3>Archives · dernier mois</h3>';
+    weeks.forEach(function (w) {
+      h += '<div class="wk">Semaine ' + w.n + w.label + '</div>' + (w.items.length ? '<ul class="list">' + w.items.map(function (t) { return doneHTML(t); }).join("") + '</ul>' : '<div class="empty">Aucun terminé cette semaine.</div>');
+    });
     return h + '</div></section>';
   }
   function billColHTML() {
-    var pend = pendingBill(), lists = arr(state.d.lists).sort(function (a, b) { return (b.n || 0) - (a.n || 0); });
+    var pend = pendingBill(), lists = arr(state.d.lists).filter(function (L) { return !L.sentAt || String(L.sentAt).slice(0, 10) >= shiftDays(today(), -HIST_DAYS); }).sort(function (a, b) { return (b.n || 0) - (a.n || 0); });
     var h = '<section class="col bill" data-col="' + BILL + '"><div class="col-h"><div class="row"><h2>À facturer</h2><span class="n">' + pend.length + ' dossier' + (pend.length > 1 ? "s" : "") + '</span></div></div>';
     h += '<div class="sendbox">';
     if (state.sendStep === 0) h += '<button class="btn btn-primary" data-send="1"' + (pend.length ? "" : " disabled") + '>Envoyer liste à facturer</button>';
@@ -567,8 +574,8 @@ button { cursor: pointer; }
     h += pend.length ? '<ul class="list">' + pend.map(function (t) {
       return '<li class="billrow"><button class="open" data-open="' + esc(t.id) + '"><span class="line1"><span class="ref">' + esc(t.ref) + '</span></span>' + (t.note ? '<span class="note">' + esc(t.note) + '</span>' : '') + '<span class="note">' + esc(colName(t.person)) + ' · terminé le ' + esc(fr(t.doneAt)) + '</span></button><button class="mini" data-unbill="' + esc(t.id) + '" aria-label="Retirer de la liste à facturer : ' + esc(t.ref) + '" title="Retirer de la liste">×</button></li>';
     }).join("") + '</ul>' : '<div class="empty">Rien à facturer pour l’instant.</div>';
-    h += '<div class="hist"><h3>Listes envoyées</h3>';
-    if (!lists.length) h += '<div class="empty">Aucune liste envoyée.</div>';
+    h += '<div class="hist"><h3>Listes envoyées · dernier mois</h3>';
+    if (!lists.length) h += '<div class="empty">Aucune liste envoyée ce dernier mois.</div>';
     lists.forEach(function (L) {
       var ex = state.expanded.has(L.id);
       h += '<div class="lblock"><button class="lhead" data-lst="' + esc(L.id) + '" aria-expanded="' + ex + '"><b>Liste n°' + esc(L.n) + '</b><span>' + esc(L.sentAt ? fr(String(L.sentAt).slice(0, 10)) : "") + '</span><i>' + (L.items ? L.items.length : 0) + ' dossier' + ((L.items || []).length > 1 ? "s" : "") + '</i><span class="chev" aria-hidden="true">▾</span></button>';
