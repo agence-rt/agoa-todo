@@ -50,7 +50,8 @@ class Services {
   stopStore() { if (this.store) this.store.stop(); this.store = null; this.ready = false; }
 
   async setupRagic(apiKey) {
-    const key = String(apiKey || "").trim();
+    /* Une clé collée peut contenir espaces, retours à la ligne, guillemets ou caractères invisibles : on ne garde que les caractères valides. */
+    const key = String(apiKey || "").replace(/[^A-Za-z0-9+\/=_-]/g, "");
     if (!key) throw Object.assign(new Error("Saisissez la clé API Ragic."), { code: "empty" });
     const host = await detectHost(key, {
       apname: config.ragic.apname, hosts: config.ragic.hosts, probePath: config.ragic.sheets.tasks.path,

@@ -49,6 +49,7 @@ class RagicClient {
     try { json = JSON.parse(text); } catch (e) { throw new RagicError("bad_response", "Réponse Ragic illisible (serveur incorrect ?)."); }
     if (json && json.status === "ERROR") {
       if (String(json.code) === "204" && tries > 1) { await sleep(1200); return this._call(method, url, body, tries - 1); }
+      if (/guest account|accessing as: guest/i.test(String(json.msg || ""))) throw new RagicError("guest", "Ragic ne reconnaît pas cette clé API (accès « invité »). Recopiez-la en entier depuis Ragic (Compte > API), sans espace ni retour à la ligne.");
       throw new RagicError(String(json.code || "ragic"), json.msg || "Erreur Ragic.");
     }
     return json;
