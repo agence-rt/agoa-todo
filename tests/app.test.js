@@ -46,6 +46,7 @@ test("l'application complète fonctionne sur Ragic", async (t) => {
   ops.set(502, { [o.code]: "AUTRE1-A", [o.objet]: "Toiture" });
 
   const agoa = {
+    info: (e) => ({ code: (e && e.code) || "error", message: String((e && e.message) || e || "") }),
     state: async () => svc.state(),
     subscribe: async (coll, cb) => { svc.listeners.add({ snapshot: (c, docs) => c === coll && cb(docs) }); cb(svc.requireStore().docs(coll)); },
     write: async (w) => { svc.requireSession(); await svc.requireStore().write(w); return true; },
@@ -93,6 +94,16 @@ test("l'application complète fonctionne sur Ragic", async (t) => {
   d.querySelector('[data-arch="a|1"]').click(); await sleep(300);
   let ra = tasks().find((r) => r[f.key] === "a");
   assert.equal(ra[f.done], "Yes"); assert.equal(ra[f.billing], "À facturer"); assert.match(ra[f.doneAt], /^\d{4}\/\d{2}\/\d{2}$/);
+
+  // glisser un dossier d'une colonne à une autre (déposé sur l'espace libre de la colonne, puis sur un dossier)
+  const dnd = (type, target, y) => { const ev = new w.Event(type, { bubbles: true, cancelable: true }); ev.dataTransfer = { setData() {}, dropEffect: "", effectAllowed: "" }; ev.clientY = y || 0; target.dispatchEvent(ev); return ev; };
+  dnd("dragstart", d.querySelector('[data-id="c"]'));
+  const gcol = d.querySelector('section[data-col="gaelle"]'), rcol = d.querySelector('section[data-col="rv"]');
+  const over = dnd("dragover", rcol.querySelector(".col-h"));
+  assert.ok(over.defaultPrevented, "la colonne entière accepte le dépôt");
+  dnd("drop", rcol.querySelector(".col-h")); await sleep(300);
+  assert.equal(tasks().find((r) => r[f.key] === "c")[f.person], "rv", "dossier déplacé vers l'autre colonne");
+  assert.ok(d.querySelector('section[data-col="rv"] [data-id="c"]'));
 
   // envoi de la liste à facturer
   d.querySelector('[data-person="__bill"]').click();

@@ -105,7 +105,13 @@ class GoogleAuth {
       body: JSON.stringify({ raw: b64url(Buffer.from(buildMime({ to, subject, body }), "utf8")) })
     });
     if (res.status === 401) { this.access = null; throw new AuthError("needs_reauth", "Session Google expirée : reconnectez-vous."); }
-    if (!res.ok) { const j = await res.json().catch(() => ({})); throw new AuthError("send", (j.error && j.error.message) || "Gmail a refusé l’envoi."); }
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({})), raw = (j.error && j.error.message) || "";
+      const reasons = JSON.stringify((j.error && j.error.errors) || []) + " " + JSON.stringify((j.error && j.error.details) || []);
+      if (/insufficient|insufficientPermissions|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(raw + reasons)) throw new AuthError("scope", "Autorisation d’envoi manquante : reconnectez-vous à Google et cochez-la.");
+      if (/has not been used|is disabled|accessNotConfigured|SERVICE_DISABLED/i.test(raw + reasons)) throw new AuthError("send", "L’API Gmail n’est pas activée dans le projet Google Cloud (Bibliothèque d’API > Gmail API > Activer).");
+      throw new AuthError("send", "Gmail a refusé l’envoi (" + res.status + ")" + (raw ? " : " + raw.slice(0, 200) : "."));
+    }
     return res.json();
   }
 }

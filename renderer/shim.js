@@ -8,12 +8,12 @@
   function snapshot(docs) {
     return { docs: docs.map(function (d) { return { id: d.id, data: function () { return d.data; } }; }) };
   }
-  function fail(e) { return Promise.reject({ code: (e && e.code) || "error", message: e && e.message }); }
+  function fail(e) { return Promise.reject(agoa.info(e)); }
 
   function collection(name) {
     return {
       onSnapshot: function (ok, ko) {
-        agoa.subscribe(name, function (docs) { ok(snapshot(docs)); }).catch(function (e) { if (ko) ko({ code: e && e.code, message: e && e.message }); });
+        agoa.subscribe(name, function (docs) { ok(snapshot(docs)); }).catch(function (e) { if (ko) ko(agoa.info(e)); });
         return function () {};
       },
       doc: function (id) {

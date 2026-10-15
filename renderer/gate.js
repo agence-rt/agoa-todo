@@ -19,7 +19,7 @@
         "<p><small>Une fenêtre de votre navigateur va s’ouvrir. L’autorisation d’envoyer des courriels sert uniquement à transmettre la liste à facturer à la comptabilité.</small></p>");
       document.getElementById("go").onclick = function () {
         if (busy) return; busy = true; this.disabled = true; this.textContent = "En attente de Google…";
-        agoa.signIn().then(refresh, function (e) { busy = false; refresh(e.message); });
+        agoa.signIn().then(refresh, function (e) { busy = false; refresh(agoa.info(e).message); });
       };
       return;
     }
@@ -30,7 +30,7 @@
       var k = document.getElementById("k"); k.focus();
       var go = function () {
         if (busy || !k.value.trim()) return; busy = true; var b = document.getElementById("ok"); b.disabled = true; b.textContent = "Vérification…";
-        agoa.setupRagic(k.value).then(render0, function (e) { busy = false; refresh(e.message); });
+        agoa.setupRagic(k.value).then(render0, function (e) { busy = false; refresh(agoa.info(e).message); });
       };
       document.getElementById("ok").onclick = go; k.onkeydown = function (e) { if (e.key === "Enter") go(); };
       document.getElementById("out").onclick = function () { agoa.signOut().then(function () { refresh(); }); };
@@ -41,7 +41,7 @@
     var detail = st.error ? st.error.message : "La base Ragic ne répond pas.";
     show(steps(2) + "<h1>Base Ragic indisponible</h1>" + err(detail) +
       '<button class="primary" id="retry">Réessayer</button><button class="link" id="key" type="button">Changer la clé Ragic</button>');
-    document.getElementById("retry").onclick = function () { this.disabled = true; agoa.retry().then(render0, function (e) { refresh(e.message); }); };
+    document.getElementById("retry").onclick = function () { this.disabled = true; agoa.retry().then(render0, function (e) { refresh(agoa.info(e).message); }); };
     document.getElementById("key").onclick = function () { agoa.forgetRagic().then(function () { refresh(); }); };
   }
   function render0(st) { busy = false; render(st); }

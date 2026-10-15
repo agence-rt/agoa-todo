@@ -19,7 +19,7 @@ function harness({ email = "dieu@remithollet.fr", hd = "remithollet.fr", verifie
       if (body.grant_type === "authorization_code") return J(200, { access_token: "AT1", expires_in: 3600, refresh_token: refresh, scope, id_token: idToken({ email, email_verified: verified, hd, name: "Dieu Test" }) });
       if (body.grant_type === "refresh_token") return body.refresh_token === "R1" ? J(200, { access_token: "AT2", expires_in: 3600 }) : J(400, { error: "invalid_grant" });
     }
-    if (url.includes("gmail.googleapis.com")) return calls.gmail401 ? J(401, {}) : J(200, { id: "m1" });
+    if (url.includes("gmail.googleapis.com")) return calls.gmailErr ? J(403, calls.gmailErr) : calls.gmail401 ? J(401, {}) : J(200, { id: "m1" });
     if (url.includes("revoke")) return J(200, {});
     return J(404, {});
   };
@@ -96,4 +96,13 @@ test("déconnexion : session effacée", async () => {
   await auth.signIn(); await auth.signOut();
   assert.equal(vault.get("google_refresh"), null); assert.equal(auth.signedIn(), false);
   assert.ok(calls.some((c) => c.url.includes("revoke")));
+});
+
+test("envoi Gmail : API non activée -> message clair ; autre refus -> message de Google", async () => {
+  const { auth, calls } = harness();
+  await auth.signIn();
+  calls.gmailErr = { error: { code: 403, message: "Gmail API has not been used in project 123 before or it is disabled.", errors: [{ reason: "accessNotConfigured" }] } };
+  await assert.rejects(() => auth.sendMail({ to: "a@b.fr", subject: "s", body: "b" }), (e) => e.code === "send" && /pas activée/.test(e.message));
+  calls.gmailErr = { error: { code: 403, message: "Rate limit exceeded" } };
+  await assert.rejects(() => auth.sendMail({ to: "a@b.fr", subject: "s", body: "b" }), (e) => /Rate limit/.test(e.message));
 });

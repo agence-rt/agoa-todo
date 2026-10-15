@@ -121,6 +121,7 @@ button { cursor: pointer; }
 .col { flex: 0 0 min(88vw, 300px); scroll-snap-align: start; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 10px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .board.solo { overflow: visible; }
 .board.solo .col { flex: 1 1 auto; max-width: 780px; }
+.col.dropcol { outline: 2px dashed var(--teal); outline-offset: -2px; }
 .col.bill { border-color: var(--teal); background: color-mix(in srgb, var(--teal) 5%, var(--card)); }
 .col-h .row { display: flex; align-items: center; gap: 8px; }
 .col-h h2 { margin: 0; flex: 1; min-width: 0; font-size: 16px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; overflow-wrap: anywhere; }
@@ -698,7 +699,10 @@ button { cursor: pointer; }
       items.forEach(function (t) { edit("tasks", t.id, { billed: lid }); });
       state.sendStep = 0; renderAll(); toast("Liste n°" + n + " envoyée à la comptabilité.");
     }).catch(function (e) {
-      state.sendStep = 0; renderBoard(); toast("Envoi impossible. " + mcpMsg(e && e.code, "Gmail"));
+      state.sendStep = 0; renderBoard();
+      var code = e && e.code, det = e && e.message ? String(e.message) : (code && !/^(error|no_mcp)$/.test(code) ? String(code) : (typeof e === "string" ? e : ""));
+      var known = /^(needs_reauth|scope|auth|network)$/.test(code || "");
+      toast("Envoi impossible. " + (code === "no_mcp" ? "La messagerie n’est pas disponible dans cette fenêtre." : mcpMsg(code, "Gmail")) + (det && !known ? " — " + det.slice(0, 240) : ""));
     });
   }
 
@@ -896,7 +900,13 @@ button { cursor: pointer; }
   });
 
   /* glisser-déposer */
-  function clearMarks() { board.querySelectorAll(".before,.after").forEach(function (n) { n.classList.remove("before", "after"); }); }
+  function clearMarks() { board.querySelectorAll(".before,.after").forEach(function (n) { n.classList.remove("before", "after"); }); board.querySelectorAll(".dropcol").forEach(function (n) { n.classList.remove("dropcol"); }); }
+  /* Zone de dépôt : la liste de la colonne, ou toute la colonne (hors terminés et hors « À facturer ») pour déposer à la fin */
+  function dropList(e) {
+    var ul = e.target.closest && e.target.closest("ul.list[data-p]"); if (ul) return ul;
+    if (!e.target.closest || e.target.closest(".hist")) return null;
+    var col = e.target.closest("section.col[data-col]"); return col ? col.querySelector("ul.list[data-p]") : null;
+  }
   board.addEventListener("dragstart", function (e) {
     var li = e.target.closest && e.target.closest("li[draggable]"); if (!li) return;
     state.dragId = li.dataset.id; li.classList.add("dragging");
@@ -904,16 +914,17 @@ button { cursor: pointer; }
   });
   board.addEventListener("dragover", function (e) {
     if (!state.dragId) return;
-    var ul = e.target.closest("ul.list[data-p]"); if (!ul) return;
-    e.preventDefault(); clearMarks();
+    var ul = dropList(e); if (!ul) return;
+    e.preventDefault(); clearMarks(); e.dataTransfer.dropEffect = "move";
+    var sec = ul.closest("section.col"); if (sec) sec.classList.add("dropcol");
     var li = e.target.closest("li[data-id]");
-    if (li && li.dataset.id !== state.dragId) { var r = li.getBoundingClientRect(); li.classList.add(e.clientY < r.top + r.height / 2 ? "before" : "after"); }
+    if (li && ul.contains(li) && li.dataset.id !== state.dragId) { var r = li.getBoundingClientRect(); li.classList.add(e.clientY < r.top + r.height / 2 ? "before" : "after"); }
   });
   board.addEventListener("drop", function (e) {
     if (!state.dragId) return;
-    var ul = e.target.closest("ul.list[data-p]"); if (!ul) return;
+    var ul = dropList(e); if (!ul) return;
     e.preventDefault();
-    var li = e.target.closest("li[data-id]"), id = state.dragId, tid = null, after = false;
+    var li = ul.contains(e.target) ? e.target.closest("li[data-id]") : null, id = state.dragId, tid = null, after = false;
     if (li && li.dataset.id !== id) { var r = li.getBoundingClientRect(); tid = li.dataset.id; after = e.clientY >= r.top + r.height / 2; }
     state.dragId = null; clearMarks();
     var l = itemsOf(ul.dataset.p).filter(function (t) { return t.id !== id; }), idx = l.length;

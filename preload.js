@@ -4,7 +4,9 @@ const { contextBridge, ipcRenderer } = require("electron");
 async function call(channel, ...args) {
   const r = await ipcRenderer.invoke(channel, ...args);
   if (r && r.ok) return r.value;
-  const err = new Error((r && r.message) || "Erreur"); err.code = (r && r.code) || "error"; throw err;
+  /* Le pont d'Electron ne garde que le message d'une erreur : le code y est donc joint (« AGOA|code|texte ») et décodé côté page. */
+  const code = (r && r.code) || "error";
+  const err = new Error("AGOA|" + code + "|" + ((r && r.message) || "Erreur")); err.code = code; throw err;
 }
 
 const snapshotHandlers = new Map();   // collection -> [fn]
@@ -12,7 +14,12 @@ ipcRenderer.on("db:snapshot", (_e, coll, docs) => (snapshotHandlers.get(coll) ||
 const statusHandlers = [];
 ipcRenderer.on("db:status", (_e, s) => statusHandlers.forEach((fn) => fn(s)));
 
+const info = (e) => {
+  const m = /^AGOA\|([^|]*)\|([\s\S]*)$/.exec(String((e && e.message) || ""));
+  return m ? { code: m[1], message: m[2] } : { code: (e && e.code) || "error", message: String((e && e.message) || e || "") };
+};
 contextBridge.exposeInMainWorld("agoa", {
+  info,
   state: () => call("app:state"),
   signIn: () => call("auth:signIn"),
   signOut: () => call("auth:signOut"),
