@@ -258,7 +258,10 @@ button { cursor: pointer; }
 .seg .sw { width: 10px; height: 10px; border-radius: 2px; background: var(--c, var(--line)); }
 .seg button[aria-pressed="true"] { border-color: var(--ink); background: color-mix(in srgb, var(--c, var(--line)) 22%, var(--card)); box-shadow: 0 0 0 1px var(--ink); }
 .elrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line); }
-.tri { display: flex; gap: 4px; }
+.tri { display: flex; gap: 4px; margin-left: auto; }
+.elrow .eln { overflow-wrap: anywhere; }
+.elx { border: 0; background: none; font-size: 17px; line-height: 1; padding: 4px 6px; color: var(--ink-soft); opacity: .6; }
+.elx:hover, .elx:focus-visible { opacity: 1; color: var(--red); }
 .tri button { padding: 3px 9px; font-size: 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); }
 .tri button[aria-pressed="true"] { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
 .tri .r[aria-pressed="true"] { background: color-mix(in srgb, var(--el-r) 25%, var(--card)); }
@@ -718,7 +721,22 @@ button { cursor: pointer; }
     d.hidden = false; $("#dlgscrim").hidden = false;
     d.querySelector("[data-dlgno]").focus();
   }
+  function removeElement(eid) {
+    state.d.tasks.forEach(function (t) { if (t.els && t.els[eid]) { var o = {}; o[eid] = ""; edit("tasks", t.id, { els: Object.assign({}, t.els, o) }); } });
+    removeDoc("elements", eid);
+  }
+  function askDeleteEl(eid) {
+    var e = state.d.elements.get(eid); if (!e) return;
+    var n = 0; state.d.tasks.forEach(function (t) { if (t.els && t.els[eid]) n++; });
+    dlgFocus = document.activeElement;
+    var d = $("#dlg");
+    d.innerHTML = '<h2 id="dlgT">Supprimer cet élément ?</h2><p id="dlgP">L’élément <b>' + esc(e.name) + '</b> sera supprimé de tous les dossiers' + (n ? " (" + n + " dossier" + (n > 1 ? "s" : "") + " concerné" + (n > 1 ? "s" : "") + ")" : "") + '. Cette action est irréversible.</p><div class="rowb"><button type="button" class="btn btn-plain" data-dlgno="1">Annuler</button><button type="button" class="btn btn-red" data-dlgel="' + esc(eid) + '">Supprimer</button></div>';
+    d.hidden = false; $("#dlgscrim").hidden = false;
+    d.querySelector("[data-dlgno]").focus();
+  }
   $("#dlg").addEventListener("click", function (e) {
+    var ye = e.target.closest("[data-dlgel]");
+    if (ye) { var eid = ye.dataset.dlgel; closeDlg(); removeElement(eid); renderAll(); if (!sheet.hidden) fillSheet(); if (!cfg.hidden) fillCfg(); toast("Élément supprimé."); return; }
     var y = e.target.closest("[data-dlgyes]");
     if (y) { var id = y.dataset.dlgyes; closeDlg(); removeDoc("tasks", id); if (state.openId === id) closeAll(); renderAll(); toast("Dossier supprimé."); return; }
     if (e.target.closest("[data-dlgno]")) closeDlg();
@@ -782,7 +800,7 @@ button { cursor: pointer; }
       types().map(function (y) { return '<button type="button" data-settype="' + esc(y.id) + '" style="--c:' + (isBold(y) ? "var(--ink-soft)" : cssOf(y.color)) + '" aria-pressed="' + (typesOf(t).indexOf(y.id) >= 0) + '">' + swHTML(y) + esc(y.name) + '</button>'; }).join("") + '</div></div>';
     h += '<div class="field"><span class="lab" id="lEl">Éléments du dossier</span><div role="group" aria-labelledby="lEl">' + (elements().length ? elements().map(function (e) {
       var v = (t.els || {})[e.id] || "";
-      return '<div class="elrow"><span>' + esc(e.name) + '</span><div class="tri"><button type="button" data-setel="' + esc(e.id) + '|" aria-pressed="' + !v + '">Aucun</button><button type="button" class="r" data-setel="' + esc(e.id) + '|r" aria-pressed="' + (v === "r") + '">Manquant</button><button type="button" class="g" data-setel="' + esc(e.id) + '|g" aria-pressed="' + (v === "g") + '">Reçu</button></div></div>';
+      return '<div class="elrow"><span class="eln">' + esc(e.name) + '</span><div class="tri"><button type="button" data-setel="' + esc(e.id) + '|" aria-pressed="' + !v + '">Aucun</button><button type="button" class="r" data-setel="' + esc(e.id) + '|r" aria-pressed="' + (v === "r") + '">Manquant</button><button type="button" class="g" data-setel="' + esc(e.id) + '|g" aria-pressed="' + (v === "g") + '">Reçu</button></div><button type="button" class="elx" data-askdelel="' + esc(e.id) + '" aria-label="Supprimer l’élément ' + esc(e.name) + '" title="Supprimer cet élément">×</button></div>';
     }).join("") : '<div class="empty">Aucun élément défini.</div>') + '</div><form class="newel" id="newEl"><label class="sr" for="fNewEl">Nouvel élément</label><input id="fNewEl" type="text" placeholder="Nouvel élément, ex. Diagnostic plomb" autocomplete="off"><button class="btn btn-outline small" type="submit">+ Créer</button></form></div>';
     h += '<fieldset class="field"><legend>Mise en forme</legend><label class="chk-l"><input type="checkbox" id="fStudy"' + (t.study ? " checked" : "") + '><u>Étude en cours</u><small>souligné</small></label><label class="chk-l"><input type="checkbox" id="fTodo"' + (t.todo ? " checked" : "") + '><i>Point à faire</i><small>italique</small></label></fieldset>';
     h += '<div class="field"><label for="fCol">Colonne</label><select id="fCol">' + cols().map(function (c) { return '<option value="' + esc(c.id) + '"' + (c.id === t.person ? " selected" : "") + '>' + esc(c.name) + '</option>'; }).join("") + '</select></div>';
@@ -835,6 +853,7 @@ button { cursor: pointer; }
     var id = state.openId, b;
     if (e.target.closest("[data-close]")) { closeAll(); return; }
     if ((b = e.target.closest("[data-settype]"))) { var cur = typesOf(state.d.tasks.get(id)), v = b.dataset.settype, nx = !v ? [] : cur.indexOf(v) >= 0 ? cur.filter(function (x) { return x !== v; }) : cur.concat([v]); edit("tasks", id, { types: nx, status: "" }); fillSheet(); return; }
+    if ((b = e.target.closest("[data-askdelel]"))) { askDeleteEl(b.dataset.askdelel); return; }
     if ((b = e.target.closest("[data-setel]"))) { var p = b.dataset.setel.split("|"), t = state.d.tasks.get(id), o = {}; o[p[0]] = p[1]; edit("tasks", id, { els: Object.assign({}, t.els || {}, o) }); fillSheet(); return; }
     if ((b = e.target.closest("[data-arch]"))) { var q = b.dataset.arch.split("|"); archive(q[0], q[1]); fillSheet(); return; }
     if ((b = e.target.closest("[data-restore]"))) { restore(b.dataset.restore); fillSheet(); return; }

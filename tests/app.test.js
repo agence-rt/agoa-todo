@@ -95,6 +95,17 @@ test("l'application complète fonctionne sur Ragic", async (t) => {
   let ra = tasks().find((r) => r[f.key] === "a");
   assert.equal(ra[f.done], "Yes"); assert.equal(ra[f.billing], "À facturer"); assert.match(ra[f.doneAt], /^\d{4}\/\d{2}\/\d{2}$/);
 
+  // suppression d'un élément depuis la fiche, avec validation
+  d.querySelector('[data-open="a"]').click();
+  assert.ok(d.querySelector('#sheet [data-askdelel="dat"]'), "croix de suppression de l'élément");
+  d.querySelector('#sheet [data-askdelel="dat"]').click();
+  assert.equal(d.querySelector("#dlg").hidden, false);
+  d.querySelector("[data-dlgno]").click();
+  assert.ok(st.docs("elements").some((x) => x.id === "dat"), "annuler ne supprime rien");
+  d.querySelector('#sheet [data-askdelel="dat"]').click(); d.querySelector("[data-dlgel]").click(); await sleep(400);
+  assert.ok(!st.docs("elements").some((x) => x.id === "dat"), "élément supprimé");
+  d.querySelector("#scrim").click();
+
   // catégories « envoyées » : la fiche reste dans la colonne sous « … envoyé », une copie part dans À facturer
   d.querySelector('[data-chk="c"]').click();
   assert.equal(d.querySelectorAll("#menu [data-arch]").length, 7, "Archivé terminé + 6 catégories à facturer");
