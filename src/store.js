@@ -148,6 +148,9 @@ class RagicStore extends EventEmitter {
     const spec = SPEC[coll];
     for (const [k, t] of Object.entries(spec)) d[k] = V[t].read(rec[f[k]]);
     if (coll === "tasks") {
+      // catégorie de facturation et dossier d'origine d'une copie : rangés dans le JSON « Éléments » (clés réservées « _… »)
+      const { _cat, _copy, ...els } = d.els || {};
+      d.els = els; d.billCat = _cat ? String(_cat) : ""; d.copyOf = _copy ? String(_copy) : "";
       const n = V.num.read(rec[f.billed]);
       d.billed = n ? this.listKeyByN(n) : "";
       if (norm(rec[f.kind]).startsWith("separ")) return { kind: "sep", label: d.ref, person: d.person, order: d.order };
@@ -181,8 +184,16 @@ class RagicStore extends EventEmitter {
         if (k === "label") { put("ref", V.str.write(v)); continue; }
         if (k === "kind") { put("kind", v === "sep" ? "Séparateur" : "Dossier"); continue; }
         if (k === "billed") { put("billed", v ? String(this.listNByKey(v)) : ""); continue; }
+        if (k === "els" || k === "billCat" || k === "copyOf") continue;
       }
       if (spec[k]) put(k, V[spec[k]].write(v, this.cfg));
+    }
+    if (coll === "tasks" && ("els" in data || "billCat" in data || "copyOf" in data)) {
+      const cur = current ? V.json.read(current[f.els]) : {};
+      const els = "els" in data ? { ...(data.els || {}) } : Object.fromEntries(Object.entries(cur).filter(([k]) => !k.startsWith("_")));
+      const cat = "billCat" in data ? data.billCat : cur._cat, copy = "copyOf" in data ? data.copyOf : cur._copy;
+      if (cat) els._cat = cat; if (copy) els._copy = copy;
+      put("els", V.json.write(els));
     }
     if (coll === "tasks" && creating && out[f.kind] === undefined) put("kind", "Dossier");
     return out;

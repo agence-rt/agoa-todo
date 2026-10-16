@@ -35,6 +35,10 @@ app.setPath("userData", ud);
   const day = (n) => { const d = new Date(Date.now() - n * 864e5); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
   const D = [["gaelle", "OLD1-A", 45], ["gaelle", "MONTH1-B", 25], ["gaelle", "WEEK1-C", 8], ["gaelle", "NOW1-D", 1]];
   for (let i = 0; i < D.length; i++) await w("tasks", "d" + i, { person: D[i][0], order: 50 + i, ref: D[i][1], note: "", types: [], els: {}, done: true, doneAt: day(D[i][2]), billing: "none" });
+  await w("tasks", "s2", { kind: "sep", label: "ANALYSE DES OFFRES envoyé", person: "gaelle", order: 20 });
+  await w("tasks", "b1", { person: "rv", order: 30, ref: "PIGALLE67-A", note: "", types: [], els: {}, done: true, doneAt: day(1), billing: "tobill", billCat: "dtg" });
+  await w("tasks", "b2", { person: "dtg", order: 31, ref: "BELLEVILLE112-D", note: "", types: [], els: {}, done: true, doneAt: day(2), billing: "tobill", billCat: "rv" });
+  await w("tasks", "b3", { person: "gaelle", order: 32, ref: "LANDY67-A", note: "", types: [], els: {}, done: true, doneAt: day(0), billing: "tobill", billCat: "offres", copyOf: "t4" });
   st.stop();
 
   const vault = new Vault(path.join(ud, "vault.json"), { encrypt: (s) => Buffer.from(s, "utf8"), decrypt: (b) => b.toString("utf8") });
@@ -47,6 +51,7 @@ app.setPath("userData", ud);
     const shoot = async () => {
       await new Promise((r) => setTimeout(r, 2500));
       const url = win.webContents.getURL();
+      if (process.env.AGOA_DEMO_JS) { await win.webContents.executeJavaScript(process.env.AGOA_DEMO_JS); await new Promise((r) => setTimeout(r, 600)); }
       const img = await win.webContents.capturePage();
       fs.writeFileSync(path.join(out, "app.png"), img.toPNG());
       console.log("DEMO url=" + url.split("/").pop(), "shot=" + path.join(out, "app.png"));

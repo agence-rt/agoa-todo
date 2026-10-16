@@ -91,9 +91,27 @@ test("l'application complète fonctionne sur Ragic", async (t) => {
   // terminer + à facturer
   d.querySelector('[data-chk="a"]').click();
   assert.ok(d.querySelector("#menu [data-archdel]"), "option supprimer");
-  d.querySelector('[data-arch="a|1"]').click(); await sleep(300);
+  d.querySelector('[data-arch="a|rv"]').click(); await sleep(300);
   let ra = tasks().find((r) => r[f.key] === "a");
   assert.equal(ra[f.done], "Yes"); assert.equal(ra[f.billing], "À facturer"); assert.match(ra[f.doneAt], /^\d{4}\/\d{2}\/\d{2}$/);
+
+  // catégories « envoyées » : la fiche reste dans la colonne sous « … envoyé », une copie part dans À facturer
+  d.querySelector('[data-chk="c"]').click();
+  assert.equal(d.querySelectorAll("#menu [data-arch]").length, 7, "Archivé terminé + 6 catégories à facturer");
+  assert.match(d.querySelector("#menu").textContent, /À facturer CONSULTATION ENTREPRISES/);
+  d.querySelector('[data-arch="c|offres"]').click(); await sleep(400);
+  const rb0 = tasks().find((r) => r[f.key] === "c");
+  assert.notEqual(rb0[f.done], "Yes", "la fiche reste ouverte dans sa colonne");
+  const sepRec = tasks().find((r) => r[f.kind] === "Séparateur" && r[f.ref] === "ANALYSE DES OFFRES envoyé");
+  assert.ok(sepRec, "séparateur créé automatiquement");
+  assert.ok(Number(rb0[f.order]) > Number(sepRec[f.order]), "fiche placée sous le séparateur");
+  const copyRec = tasks().find((r) => r[f.ref] === rb0[f.ref] && r[f.billing] === "À facturer");
+  assert.ok(copyRec && copyRec[f.done] === "Yes" && !copyRec[f.note], "copie avec la seule référence");
+  assert.deepEqual(JSON.parse(copyRec[f.els]), { _cat: "offres", _copy: "c" });
+  assert.equal(d.querySelectorAll('section[data-col="rv"] .hist .task, section[data-col="gaelle"] .hist .task').length >= 0, true);
+  d.querySelector('[data-person="__bill"]').click();
+  assert.match([...d.querySelectorAll(".bill .sep")].map((x) => x.textContent).join("|"), /RV\|ANALYSE DES OFFRES/);
+  d.querySelector('[data-person="all"]').click();
 
   // glisser un dossier d'une colonne à une autre (déposé sur l'espace libre de la colonne, puis sur un dossier)
   const dnd = (type, target, y) => { const ev = new w.Event(type, { bubbles: true, cancelable: true }); ev.dataTransfer = { setData() {}, dropEffect: "", effectAllowed: "" }; ev.clientY = y || 0; target.dispatchEvent(ev); return ev; };

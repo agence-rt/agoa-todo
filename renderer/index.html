@@ -171,6 +171,8 @@ button { cursor: pointer; }
 .sep { position: relative; display: flex; align-items: center; justify-content: center; margin: 6px 0 2px; padding: 5px 26px; background: var(--sep-bg); border-radius: 3px; }
 .sep .lbl { background: none; border: 0; padding: 0; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--ink); text-align: center; }
 .sep .rule { display: none; }
+.sep.fixed { margin: 8px 0 4px; }
+.archcats { flex-wrap: wrap; margin-top: 6px; }
 .sep .x { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); border: 0; background: none; color: var(--ink-soft); font-size: 15px; line-height: 1; padding: 0 3px; opacity: .5; }
 .sep:hover .x { opacity: 1; }
 .sep input { flex: 1; text-align: center; padding: 3px 7px; border: 1px solid var(--teal); border-radius: var(--radius); background: var(--card); font-size: 12.5px; }
@@ -371,7 +373,22 @@ button { cursor: pointer; }
   var elements = function () { return arr(state.d.elements).sort(byOrder); };
   var colName = function (id) { var c = state.d.columns.get(id); return c ? c.name : "—"; };
   function itemsOf(cid) { return arr(state.d.tasks).filter(function (t) { return t.person === cid && !t.done; }).sort(byOrder); }
-  function pendingBill() { return arr(state.d.tasks).filter(function (t) { return t.done && t.billing === "tobill" && !t.billed; }).sort(function (a, b) { return (a.doneAt || "") < (b.doneAt || "") ? -1 : 1; }); }
+  /* catégories de facturation : ordre d'affichage dans « À facturer » ; « staged » = la fiche reste dans la colonne sous « … envoyé » */
+  var BILL_CATS = [
+    { k: "rv", label: "RV" }, { k: "rvtp", label: "RV TRAVAUX PRIVATIFS" },
+    { k: "consult", label: "CONSULTATION ENTREPRISES", staged: true }, { k: "offres", label: "ANALYSE DES OFFRES", staged: true },
+    { k: "dtg", label: "DTG" }, { k: "pc", label: "PC" }
+  ];
+  var MENU_ORDER = ["rv", "dtg", "rvtp", "consult", "offres", "pc"];
+  var catOf = function (k) { for (var i = 0; i < BILL_CATS.length; i++) if (BILL_CATS[i].k === k) return BILL_CATS[i]; return null; };
+  var catRank = function (k) { for (var i = 0; i < BILL_CATS.length; i++) if (BILL_CATS[i].k === k) return i; return -1; };
+  function pendingBill() {
+    return arr(state.d.tasks).filter(function (t) { return t.done && t.billing === "tobill" && !t.billed; })
+      .sort(function (a, b) { return (catRank(a.billCat) - catRank(b.billCat)) || ((a.doneAt || "") < (b.doneAt || "") ? -1 : (a.doneAt || "") > (b.doneAt || "") ? 1 : 0); });
+  }
+  function archBtns(id, cls) {
+    return MENU_ORDER.map(function (k) { return '<button class="' + cls + '" data-arch="' + esc(id) + '|' + k + '" role="menuitem">À facturer ' + esc(catOf(k).label) + '</button>'; }).join("");
+  }
   var isSep = function (t) { return t.kind === "sep"; };
   function typesOf(t) {
     var a = Array.isArray(t.types) ? t.types : (t.status ? [t.status] : []);
@@ -398,7 +415,7 @@ button { cursor: pointer; }
   function doneWeeks(cid) {
     var m0 = monday(today()), m1 = shiftDays(m0, -7), cut = shiftDays(today(), -HIST_DAYS), map = {};
     arr(state.d.tasks).forEach(function (t) {
-      if (t.person !== cid || !t.done || !t.doneAt || isSep(t) || t.doneAt < cut) return;
+      if (t.person !== cid || !t.done || !t.doneAt || isSep(t) || t.copyOf || t.doneAt < cut) return;
       (map[monday(t.doneAt)] = map[monday(t.doneAt)] || []).push(t);
     });
     map[m0] = map[m0] || [];
@@ -512,7 +529,8 @@ button { cursor: pointer; }
     var tags = '<span class="tag">terminé le ' + esc(fr(t.doneAt)) + '</span>';
     if (t.billing === "tobill") {
       var L = t.billed ? state.d.lists.get(t.billed) : null;
-      tags += L ? ' <span class="tag bill">Facturé · liste n°' + esc(L.n) + '</span>' : ' <span class="tag bill">À facturer</span>';
+      var cc = catOf(t.billCat), cl = cc ? ' · ' + esc(cc.label) : '';
+      tags += L ? ' <span class="tag bill">Facturé · liste n°' + esc(L.n) + cl + '</span>' : ' <span class="tag bill">À facturer' + cl + '</span>';
     }
     return '<li class="task done" data-id="' + esc(t.id) + '"><button class="chk" role="checkbox" aria-checked="true" data-unchk="' + esc(t.id) + '" aria-label="Remettre en cours : ' + esc(t.ref) + '">' + CHECK + '</button>' +
       '<button class="open" data-open="' + esc(t.id) + '"><span class="line1"><span class="ref">' + esc(t.ref) + '</span></span>' + (t.note ? '<span class="note">' + esc(t.note) + '</span>' : '') + '<span class="line1">' + tags + '</span></button></li>';
@@ -579,9 +597,12 @@ button { cursor: pointer; }
     if (state.sendStep === 0) h += '<button class="btn btn-primary" data-send="1"' + (pend.length ? "" : " disabled") + '>Envoyer liste à facturer</button>';
     else if (state.sendStep === 1) h += '<div class="hint">Envoyer cette liste du ' + esc(fr(today())) + ' à ' + MAIL_TO + ' ?</div><div class="rowb"><button class="btn btn-primary" data-sendok="1">Confirmer l’envoi</button><button class="btn btn-plain" data-sendno="1">Annuler</button></div>';
     else h += '<button class="btn btn-primary" disabled>Envoi en cours…</button>';
-    h += '<div class="hint">Les dossiers terminés avec « archivé + à facturer » arrivent ici.</div></div>';
+    h += '<div class="hint">Les fiches « À facturer … » arrivent ici, classées par type.</div></div>';
+    var lastCat = null;
     h += pend.length ? '<ul class="list">' + pend.map(function (t) {
-      return '<li class="billrow"><button class="open" data-open="' + esc(t.id) + '"><span class="line1"><span class="ref">' + esc(t.ref) + '</span></span>' + (t.note ? '<span class="note">' + esc(t.note) + '</span>' : '') + '<span class="note">' + esc(colName(t.person)) + ' · terminé le ' + esc(fr(t.doneAt)) + '</span></button><button class="mini" data-unbill="' + esc(t.id) + '" aria-label="Retirer de la liste à facturer : ' + esc(t.ref) + '" title="Retirer de la liste">×</button></li>';
+      var k = catOf(t.billCat) ? t.billCat : "", head = "";
+      if (k !== lastCat) { lastCat = k; head = '<li class="sep fixed"><span class="lbl">' + esc(k ? catOf(k).label : "Sans catégorie") + '</span></li>'; }
+      return head + '<li class="billrow"><button class="open" data-open="' + esc(t.id) + '"><span class="line1"><span class="ref">' + esc(t.ref) + '</span></span>' + (t.note ? '<span class="note">' + esc(t.note) + '</span>' : '') + '<span class="note">' + esc(colName(t.person)) + (t.copyOf ? '' : ' · terminé le ' + esc(fr(t.doneAt))) + '</span></button><button class="mini" data-unbill="' + esc(t.id) + '" aria-label="Retirer de la liste à facturer : ' + esc(t.ref) + '" title="Retirer de la liste">×</button></li>';
     }).join("") + '</ul>' : '<div class="empty">Rien à facturer pour l’instant.</div>';
     var aOpenB = state.archOpen.has("bill");
     h += '<div class="hist' + (aOpenB ? "" : " closed") + '"><button class="hist-t" data-arch-toggle="bill" aria-expanded="' + aOpenB + '"><span class="chev" aria-hidden="true">▸</span>Listes envoyées · dernier mois<i>' + lists.length + ' liste' + (lists.length > 1 ? "s" : "") + '</i></button>';
@@ -590,7 +611,7 @@ button { cursor: pointer; }
     lists.forEach(function (L) {
       var ex = state.expanded.has(L.id);
       h += '<div class="lblock"><button class="lhead" data-lst="' + esc(L.id) + '" aria-expanded="' + ex + '"><b>Liste n°' + esc(L.n) + '</b><span>' + esc(L.sentAt ? fr(String(L.sentAt).slice(0, 10)) : "") + '</span><i>' + (L.items ? L.items.length : 0) + ' dossier' + ((L.items || []).length > 1 ? "s" : "") + '</i><span class="chev" aria-hidden="true">▾</span></button>';
-      if (ex) h += '<ul class="litems">' + (L.items || []).map(function (it) { return '<li><b>' + esc(it.ref) + '</b>' + (it.note ? ' — ' + esc(it.note) : '') + '<div class="m">' + esc(it.col || "") + (it.doneAt ? ' · terminé le ' + esc(fr(it.doneAt)) : '') + '</div></li>'; }).join("") + '</ul>';
+      if (ex) h += '<ul class="litems">' + (L.items || []).map(function (it) { return '<li><b>' + esc(it.ref) + '</b>' + (it.note ? ' — ' + esc(it.note) : '') + '<div class="m">' + esc([it.cat, it.col].filter(Boolean).join(" · ")) + (it.doneAt ? ' · terminé le ' + esc(fr(it.doneAt)) : '') + '</div></li>'; }).join("") + '</ul>';
       h += '</div>';
     });
     }
@@ -660,7 +681,32 @@ button { cursor: pointer; }
   }
 
   /* ---------- archivage et facturation ---------- */
-  function archive(id, bill) { disarm(); edit("tasks", id, { done: true, doneAt: today(), billing: bill ? "tobill" : "none", billed: "" }); closeMenu(); toast(bill ? "Archivé, ajouté à la colonne À facturer." : "Archivé."); }
+  function archive(id, key) {
+    disarm();
+    var cat = key && key !== "0" ? catOf(key) : null;
+    if (!cat) { edit("tasks", id, { done: true, doneAt: today(), billing: "none", billed: "" }); closeMenu(); toast("Archivé."); return; }
+    if (!cat.staged) { edit("tasks", id, { done: true, doneAt: today(), billing: "tobill", billed: "", billCat: cat.k }); closeMenu(); toast("Archivé, ajouté à la colonne À facturer · " + cat.label + "."); return; }
+    stage(id, cat); closeMenu();
+    toast(cat.label + " : la fiche reste dans la colonne, sa référence est ajoutée à À facturer.");
+  }
+  /* catégorie « envoyée » : la fiche reste dans sa colonne sous le séparateur « … envoyé » (créé au besoin), une copie portant la seule référence part dans À facturer */
+  function stage(id, cat) {
+    var t = state.d.tasks.get(id); if (!t) return;
+    var label = cat.label + " envoyé", want = norm(label);
+    var l = itemsOf(t.person), sep = l.filter(function (x) { return isSep(x) && norm(x.label) === want; })[0];
+    var sid = sep ? sep.id : createTask(t.person, { kind: "sep", label: label });
+    var rest = itemsOf(t.person).filter(function (x) { return x.id !== id; });
+    var si = rest.findIndex(function (x) { return x.id === sid; }), end = si + 1;
+    while (end < rest.length && !isSep(rest[end])) end++;
+    var inGroup = itemsOf(t.person).some(function (x) { return x.id === id; }) && (function () { var full = itemsOf(t.person), a = full.findIndex(function (x) { return x.id === sid; }), b = full.findIndex(function (x) { return x.id === id; }); if (a < 0 || b < a) return false; for (var i = a + 1; i < b; i++) if (isSep(full[i])) return false; return true; })();
+    if (!inGroup) {
+      var prev = rest[end - 1], next = rest[end], o = next ? ((prev.order || 0) + (next.order || 0)) / 2 : (prev.order || 0) + 1;
+      edit("tasks", id, { order: o });
+    }
+    create("tasks", { person: t.person, order: nextOrder(t.person), ref: t.ref, done: true, doneAt: today(), billing: "tobill", billed: "", billCat: cat.k, copyOf: id });
+    renderAll();
+  }
+  function unbill(id) { var t = state.d.tasks.get(id); if (!t) return; if (t.copyOf) removeDoc("tasks", id); else edit("tasks", id, { billing: "none", billCat: "" }); }
   function restore(id) { var t = state.d.tasks.get(id); if (!t) return; if (t.billed) { toast("Ce dossier figure dans une liste déjà envoyée."); return; } edit("tasks", id, { done: false, doneAt: "", billing: "" }); toast("Remis en cours."); }
   var dlgFocus = null;
   function closeDlg() { $("#dlg").hidden = true; $("#dlgscrim").hidden = true; $("#dlg").innerHTML = ""; if (dlgFocus && document.contains(dlgFocus)) dlgFocus.focus(); dlgFocus = null; }
@@ -683,7 +729,7 @@ button { cursor: pointer; }
     var t = state.d.tasks.get(id); if (!t) return;
     state.menu = id;
     var m = $("#menu");
-    m.innerHTML = '<div class="t">Terminer : ' + esc(t.ref) + '</div><button class="b" data-arch="' + esc(id) + '|0" role="menuitem">Archivé terminé</button><button class="b" data-arch="' + esc(id) + '|1" role="menuitem">Archivé + à facturer</button><button class="dng" data-archdel="' + esc(id) + '" role="menuitem">Supprimer</button><button data-archno="1" role="menuitem">Annuler</button>';
+    m.innerHTML = '<div class="t">Terminer : ' + esc(t.ref) + '</div><button class="b" data-arch="' + esc(id) + '|0" role="menuitem">Archivé terminé</button>' + archBtns(id, "b") + '<button class="dng" data-archdel="' + esc(id) + '" role="menuitem">Supprimer</button><button data-archno="1" role="menuitem">Annuler</button>';
     m.hidden = false;
     var r = btn.getBoundingClientRect(), w = m.offsetWidth, h = m.offsetHeight;
     m.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + "px";
@@ -692,7 +738,12 @@ button { cursor: pointer; }
   }
   function bodyText(items, n, date) {
     var lines = ["Bonjour,", "", "Liste à facturer n°" + n + " du " + date + " (" + items.length + " dossier" + (items.length > 1 ? "s" : "") + ") :", ""];
-    items.forEach(function (t) { lines.push("- " + t.ref + (t.note ? " — " + t.note : "") + " (" + colName(t.person) + ", terminé le " + fr(t.doneAt) + ")"); });
+    var last = null;
+    items.forEach(function (t) {
+      var k = catOf(t.billCat) ? t.billCat : "";
+      if (k !== last) { last = k; lines.push("", "== " + (k ? catOf(k).label : "Sans catégorie") + " =="); }
+      lines.push("- " + t.ref + (t.note ? " — " + t.note : "") + " (" + colName(t.person) + (t.copyOf ? "" : ", terminé le " + fr(t.doneAt)) + ")");
+    });
     lines.push("", "Envoyé depuis AGOA TD.");
     return lines.join("\n");
   }
@@ -705,7 +756,7 @@ button { cursor: pointer; }
       if (!mcp) throw { code: "no_mcp" };
       return mcp.callTool("Gmail", "send_message", { to: [MAIL_TO], subject: "Liste à facturer n°" + n + " — " + date, body: bodyText(items, n, date) });
     }).then(function () {
-      var snap = items.map(function (t) { return { ref: t.ref, note: t.note || "", col: colName(t.person), doneAt: t.doneAt }; });
+      var snap = items.map(function (t) { return { ref: t.ref, note: t.note || "", col: colName(t.person), doneAt: t.copyOf ? "" : t.doneAt, cat: catOf(t.billCat) ? catOf(t.billCat).label : "" }; });
       var lid = create("lists", { n: n, sentAt: new Date().toISOString(), items: snap });
       items.forEach(function (t) { edit("tasks", t.id, { billed: lid }); });
       state.sendStep = 0; renderAll(); toast("Liste n°" + n + " envoyée à la comptabilité.");
@@ -736,11 +787,11 @@ button { cursor: pointer; }
     h += '<fieldset class="field"><legend>Mise en forme</legend><label class="chk-l"><input type="checkbox" id="fStudy"' + (t.study ? " checked" : "") + '><u>Étude en cours</u><small>souligné</small></label><label class="chk-l"><input type="checkbox" id="fTodo"' + (t.todo ? " checked" : "") + '><i>Point à faire</i><small>italique</small></label></fieldset>';
     h += '<div class="field"><label for="fCol">Colonne</label><select id="fCol">' + cols().map(function (c) { return '<option value="' + esc(c.id) + '"' + (c.id === t.person ? " selected" : "") + '>' + esc(c.name) + '</option>'; }).join("") + '</select></div>';
     h += '<div class="archbox">';
-    if (!t.done) h += '<p>Terminer ce dossier :</p><div class="rowb"><button class="btn btn-plain" data-arch="' + esc(t.id) + '|0">Archivé terminé</button><button class="btn btn-primary" data-arch="' + esc(t.id) + '|1">Archivé + à facturer</button></div>';
+    if (!t.done) h += '<p>Terminer ce dossier :</p><div class="rowb"><button class="btn btn-plain" data-arch="' + esc(t.id) + '|0">Archivé terminé</button></div><div class="rowb archcats">' + MENU_ORDER.map(function (k) { return '<button class="btn btn-primary" data-arch="' + esc(t.id) + '|' + k + '">À facturer ' + esc(catOf(k).label) + '</button>'; }).join("") + '</div>';
     else {
       var L = t.billed ? state.d.lists.get(t.billed) : null;
       h += '<p>Terminé le ' + esc(fr(t.doneAt)) + (t.billing === "tobill" ? (L ? " · facturé, liste n°" + esc(L.n) : " · à facturer") : "") + '.</p><div class="rowb">';
-      if (!t.billed) h += '<button class="btn btn-plain" data-restore="' + esc(t.id) + '">Remettre en cours</button>' + (t.billing === "tobill" ? '<button class="btn btn-plain" data-unbill="' + esc(t.id) + '">Ne pas facturer</button>' : '<button class="btn btn-primary" data-tobill="' + esc(t.id) + '">Marquer à facturer</button>');
+      if (!t.billed) h += (t.copyOf ? '' : '<button class="btn btn-plain" data-restore="' + esc(t.id) + '">Remettre en cours</button>') + (t.billing === "tobill" ? '<button class="btn btn-plain" data-unbill="' + esc(t.id) + '">' + (t.copyOf ? 'Retirer de la liste' : 'Ne pas facturer') + '</button>' : '<button class="btn btn-primary" data-tobill="' + esc(t.id) + '">Marquer à facturer</button>');
       h += '</div>';
     }
     h += '</div>';
@@ -785,9 +836,9 @@ button { cursor: pointer; }
     if (e.target.closest("[data-close]")) { closeAll(); return; }
     if ((b = e.target.closest("[data-settype]"))) { var cur = typesOf(state.d.tasks.get(id)), v = b.dataset.settype, nx = !v ? [] : cur.indexOf(v) >= 0 ? cur.filter(function (x) { return x !== v; }) : cur.concat([v]); edit("tasks", id, { types: nx, status: "" }); fillSheet(); return; }
     if ((b = e.target.closest("[data-setel]"))) { var p = b.dataset.setel.split("|"), t = state.d.tasks.get(id), o = {}; o[p[0]] = p[1]; edit("tasks", id, { els: Object.assign({}, t.els || {}, o) }); fillSheet(); return; }
-    if ((b = e.target.closest("[data-arch]"))) { var q = b.dataset.arch.split("|"); archive(q[0], q[1] === "1"); fillSheet(); return; }
+    if ((b = e.target.closest("[data-arch]"))) { var q = b.dataset.arch.split("|"); archive(q[0], q[1]); fillSheet(); return; }
     if ((b = e.target.closest("[data-restore]"))) { restore(b.dataset.restore); fillSheet(); return; }
-    if ((b = e.target.closest("[data-unbill]"))) { edit("tasks", b.dataset.unbill, { billing: "none" }); fillSheet(); return; }
+    if ((b = e.target.closest("[data-unbill]"))) { var ub = b.dataset.unbill, cp = state.d.tasks.get(ub); unbill(ub); if (cp && cp.copyOf) closeAll(); else fillSheet(); return; }
     if ((b = e.target.closest("[data-tobill]"))) { edit("tasks", b.dataset.tobill, { billing: "tobill" }); fillSheet(); return; }
     if ((b = e.target.closest("[data-mv]"))) { moveTask(id, Number(b.dataset.mv)); return; }
     if ((b = e.target.closest("[data-deltask]"))) { askDelete(id); }
@@ -879,7 +930,7 @@ button { cursor: pointer; }
     if (e.target.closest("[data-send]")) { state.sendStep = 1; clearTimeout(sendTimer); sendTimer = setTimeout(function () { if (state.sendStep === 1) { state.sendStep = 0; renderBoard(); } }, 8000); renderBoard(); return; }
     if (e.target.closest("[data-sendno]")) { state.sendStep = 0; renderBoard(); return; }
     if (e.target.closest("[data-sendok]")) { clearTimeout(sendTimer); sendBilling(); return; }
-    if ((b = e.target.closest("[data-unbill]"))) { edit("tasks", b.dataset.unbill, { billing: "none" }); return; }
+    if ((b = e.target.closest("[data-unbill]"))) { unbill(b.dataset.unbill); return; }
     if ((b = e.target.closest("[data-arch-toggle]"))) { var ak = b.dataset.archToggle; if (state.archOpen.has(ak)) state.archOpen.delete(ak); else state.archOpen.add(ak); renderBoard(); return; }
     if ((b = e.target.closest("[data-lst]"))) { var id = b.dataset.lst; if (state.expanded.has(id)) state.expanded.delete(id); else state.expanded.add(id); renderBoard(); }
   });
@@ -950,7 +1001,7 @@ button { cursor: pointer; }
   /* ---------- menu d'archivage ---------- */
   $("#menu").addEventListener("click", function (e) {
     var b = e.target.closest("[data-arch]");
-    if (b) { var p = b.dataset.arch.split("|"); archive(p[0], p[1] === "1"); return; }
+    if (b) { var p = b.dataset.arch.split("|"); archive(p[0], p[1]); return; }
     var d = e.target.closest("[data-archdel]");
     if (d) { var did = d.dataset.archdel; closeMenu(); askDelete(did); return; }
     if (e.target.closest("[data-archno]")) closeMenu();

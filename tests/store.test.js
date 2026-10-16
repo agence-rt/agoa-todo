@@ -65,6 +65,14 @@ test("création / mise à jour / suppression d'un dossier et conversions", async
   assert.deepEqual(d.types, ["urgent", "struct"]); assert.equal(d.done, true); assert.equal(d.doneAt, "2026-10-13");
   assert.equal(d.billing, "tobill"); assert.deepEqual(d.els, { dat: "r" }); assert.equal(d.ragic, "123"); assert.equal(d.order, 1);
 
+  // catégorie de facturation et copie : conservées à côté des éléments, sans les polluer
+  await store.write({ op: "update", coll: "tasks", id: "t1", data: { billCat: "dtg", copyOf: "x9" } });
+  let d2 = store.docs("tasks").find((x) => x.id === "t1").data;
+  assert.equal(d2.billCat, "dtg"); assert.equal(d2.copyOf, "x9"); assert.deepEqual(d2.els, { dat: "r" });
+  await store.write({ op: "update", coll: "tasks", id: "t1", data: { els: { dat: "g" } } });
+  d2 = store.docs("tasks").find((x) => x.id === "t1").data;
+  assert.equal(d2.billCat, "dtg", "modifier les éléments garde la catégorie"); assert.deepEqual(d2.els, { dat: "g" });
+
   await store.write({ op: "delete", coll: "tasks", id: "t1" });
   assert.equal(fake.sheets[P.tasks.path].recs.size, 0); assert.equal(store.docs("tasks").length, 0);
 });
