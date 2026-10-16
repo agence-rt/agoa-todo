@@ -259,7 +259,9 @@ button { cursor: pointer; }
 .seg button[aria-pressed="true"] { border-color: var(--ink); background: color-mix(in srgb, var(--c, var(--line)) 22%, var(--card)); box-shadow: 0 0 0 1px var(--ink); }
 .elrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line); }
 .tri { display: flex; gap: 4px; margin-left: auto; }
-.elrow .eln { overflow-wrap: anywhere; }
+.elrow .eln { flex: 1 1 0; min-width: 0; border: 1px solid transparent; border-radius: 4px; background: none; padding: 3px 5px; font: inherit; color: var(--ink); text-overflow: ellipsis; }
+.elrow .eln:hover { border-color: var(--line); }
+.elrow .eln:focus { border-color: var(--teal); background: var(--card); outline: none; }
 .elx { border: 0; background: none; font-size: 17px; line-height: 1; padding: 4px 6px; color: var(--ink-soft); opacity: .6; }
 .elx:hover, .elx:focus-visible { opacity: 1; color: var(--red); }
 .tri button { padding: 3px 9px; font-size: 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); }
@@ -800,7 +802,7 @@ button { cursor: pointer; }
       types().map(function (y) { return '<button type="button" data-settype="' + esc(y.id) + '" style="--c:' + (isBold(y) ? "var(--ink-soft)" : cssOf(y.color)) + '" aria-pressed="' + (typesOf(t).indexOf(y.id) >= 0) + '">' + swHTML(y) + esc(y.name) + '</button>'; }).join("") + '</div></div>';
     h += '<div class="field"><span class="lab" id="lEl">Éléments du dossier</span><div role="group" aria-labelledby="lEl">' + (elements().length ? elements().map(function (e) {
       var v = (t.els || {})[e.id] || "";
-      return '<div class="elrow"><span class="eln">' + esc(e.name) + '</span><div class="tri"><button type="button" data-setel="' + esc(e.id) + '|" aria-pressed="' + !v + '">Aucun</button><button type="button" class="r" data-setel="' + esc(e.id) + '|r" aria-pressed="' + (v === "r") + '">Manquant</button><button type="button" class="g" data-setel="' + esc(e.id) + '|g" aria-pressed="' + (v === "g") + '">Reçu</button></div><button type="button" class="elx" data-askdelel="' + esc(e.id) + '" aria-label="Supprimer l’élément ' + esc(e.name) + '" title="Supprimer cet élément">×</button></div>';
+      return '<div class="elrow"><input type="text" class="eln" id="en_' + esc(e.id) + '" data-ename="' + esc(e.id) + '" value="' + esc(e.name) + '" autocomplete="off" aria-label="Renommer l’élément" title="Cliquer pour renommer (modifie toutes les fiches)"><div class="tri"><button type="button" data-setel="' + esc(e.id) + '|" aria-pressed="' + !v + '">Aucun</button><button type="button" class="r" data-setel="' + esc(e.id) + '|r" aria-pressed="' + (v === "r") + '">Manquant</button><button type="button" class="g" data-setel="' + esc(e.id) + '|g" aria-pressed="' + (v === "g") + '">Reçu</button></div><button type="button" class="elx" data-askdelel="' + esc(e.id) + '" aria-label="Supprimer l’élément ' + esc(e.name) + '" title="Supprimer cet élément">×</button></div>';
     }).join("") : '<div class="empty">Aucun élément défini.</div>') + '</div><form class="newel" id="newEl"><label class="sr" for="fNewEl">Nouvel élément</label><input id="fNewEl" type="text" placeholder="Nouvel élément, ex. Diagnostic plomb" autocomplete="off"><button class="btn btn-outline small" type="submit">+ Créer</button></form></div>';
     h += '<fieldset class="field"><legend>Mise en forme</legend><label class="chk-l"><input type="checkbox" id="fStudy"' + (t.study ? " checked" : "") + '><u>Étude en cours</u><small>souligné</small></label><label class="chk-l"><input type="checkbox" id="fTodo"' + (t.todo ? " checked" : "") + '><i>Point à faire</i><small>italique</small></label></fieldset>';
     h += '<div class="field"><label for="fCol">Colonne</label><select id="fCol">' + cols().map(function (c) { return '<option value="' + esc(c.id) + '"' + (c.id === t.person ? " selected" : "") + '>' + esc(c.name) + '</option>'; }).join("") + '</select></div>';
@@ -837,6 +839,7 @@ button { cursor: pointer; }
   });
   sheet.addEventListener("change", function (e) {
     var id = state.openId; if (!id) return;
+    if (e.target.dataset && e.target.dataset.ename) { var nv = e.target.value.trim(); if (nv && state.d.elements.get(e.target.dataset.ename).name !== nv) { edit("elements", e.target.dataset.ename, { name: nv }); toast("Élément renommé pour toutes les fiches."); } fillSheet(); return; }
     var m = { fStudy: "study", fTodo: "todo" }, o = {};
     if (m[e.target.id]) { o[m[e.target.id]] = e.target.checked; edit("tasks", id, o); }
     else if (e.target.id === "fCol") { var cid = e.target.value; edit("tasks", id, { person: cid, order: nextOrder(cid) }); }

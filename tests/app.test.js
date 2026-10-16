@@ -95,6 +95,14 @@ test("l'application complète fonctionne sur Ragic", async (t) => {
   let ra = tasks().find((r) => r[f.key] === "a");
   assert.equal(ra[f.done], "Yes"); assert.equal(ra[f.billing], "À facturer"); assert.match(ra[f.doneAt], /^\d{4}\/\d{2}\/\d{2}$/);
 
+  // renommage d'un élément depuis la fiche : valable pour toutes les fiches
+  d.querySelector('[data-open="a"]').click();
+  const en = d.querySelector('#sheet [data-ename="dat"]'); en.value = "DAT reçu"; en.dispatchEvent(new w.Event("change", { bubbles: true })); await sleep(400);
+  assert.equal(st.docs("elements").find((x) => x.id === "dat").data.name, "DAT reçu");
+  assert.equal(d.querySelector('#sheet [data-ename="dat"]').value, "DAT reçu");
+  assert.ok(![...d.querySelectorAll(".task .pill")].some((x) => /^DAT$/.test(x.textContent.trim())), "l'ancien nom a disparu des fiches");
+  d.querySelector("#scrim").click();
+
   // suppression d'un élément depuis la fiche, avec validation
   d.querySelector('[data-open="a"]').click();
   assert.ok(d.querySelector('#sheet [data-askdelel="dat"]'), "croix de suppression de l'élément");
