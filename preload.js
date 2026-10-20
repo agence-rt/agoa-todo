@@ -34,5 +34,9 @@ contextBridge.exposeInMainWorld("agoa", {
   write: (w) => call("db:write", w),
   onStatus: (fn) => { statusHandlers.push(fn); },
   searchOperations: (q) => call("ragic:search", q),
-  sendMail: (m) => call("mail:send", m)
+  sendMail: (m) => call("mail:send", m),
+  dropboxGet: () => call("dropbox:get"),
+  dropboxPick: () => call("dropbox:pick"),
+  dropboxClear: () => call("dropbox:clear"),
+  dropboxOpen: (ref) => call("dropbox:open", ref)
 });

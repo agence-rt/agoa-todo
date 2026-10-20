@@ -96,6 +96,16 @@ button { cursor: pointer; }
 .search input { width: 260px; max-width: 100%; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
 .legend { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px 4px 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); font-size: 13px; }
+.dbx { position: absolute; top: 5px; right: 5px; z-index: 1; display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 4px; background: var(--card); color: var(--ink-soft); opacity: 0; }
+.task:hover .dbx, .dbx:focus-visible { opacity: 1; }
+.dbx:hover { color: var(--teal); background: var(--hover); }
+.dbxrow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.dbxpath { font-size: 12px; color: var(--ink-soft); overflow-wrap: anywhere; }
+.chipw { display: inline-flex; align-items: center; }
+.chipw .chip { }
+.chipedit { border: 0; background: none; color: var(--ink-soft); font-size: 13px; padding: 2px 3px; margin-left: 1px; opacity: 0; }
+.chipw:hover .chipedit, .chipedit:focus-visible { opacity: 1; }
+.chipedit:hover { color: var(--teal); }
 .chip .sw { width: 10px; height: 10px; border-radius: 2px; background: var(--c, var(--line)); flex: none; }
 .chip i { font-style: normal; font-size: 11.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .chip[aria-pressed="true"] { background: color-mix(in srgb, var(--c) 20%, var(--card)); border-color: var(--c); }
@@ -310,7 +320,7 @@ button { cursor: pointer; }
     <label class="sr" for="tName">Nom du type</label>
     <input id="tName" type="text" placeholder="Nom du type, ex. Copropriété sensible" autocomplete="off">
     <div id="tSw" class="swatches" role="group" aria-label="Couleur"></div>
-    <button class="btn btn-primary small" type="submit">Créer le type</button>
+    <button class="btn btn-primary small" type="submit" id="tSubmit">Créer le type</button>
     <button class="btn btn-plain small" type="button" id="tCancel">Annuler</button>
   </form>
 
@@ -395,6 +405,7 @@ button { cursor: pointer; }
     return MENU_ORDER.map(function (k) { return '<button class="' + cls + '" data-arch="' + esc(id) + '|' + k + '" role="menuitem">À facturer ' + esc(catOf(k).label) + '</button>'; }).join("");
   }
   var isSep = function (t) { return t.kind === "sep"; };
+  var FOLDER_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.2l2 2.3h8.8A1.5 1.5 0 0 1 21 8.8v9.7a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/></svg>';
   function typesOf(t) {
     var a = Array.isArray(t.types) ? t.types : (t.status ? [t.status] : []);
     return types().filter(function (y) { return a.indexOf(y.id) >= 0; }).map(function (y) { return y.id; });
@@ -479,7 +490,7 @@ button { cursor: pointer; }
     var c = {};
     state.d.tasks.forEach(function (t) { if (!t.done && !isSep(t)) typesOf(t).forEach(function (k) { c[k] = (c[k] || 0) + 1; }); });
     var h = types().map(function (t) {
-      return '<button class="chip" style="--c:' + (isBold(t) ? "var(--ink-soft)" : cssOf(t.color)) + '" data-type="' + esc(t.id) + '" aria-pressed="' + state.filter.has(t.id) + '">' + swHTML(t) + esc(t.name) + ' <i>' + (c[t.id] || 0) + '</i></button>';
+      return '<span class="chipw"><button class="chip" style="--c:' + (isBold(t) ? "var(--ink-soft)" : cssOf(t.color)) + '" data-type="' + esc(t.id) + '" aria-pressed="' + state.filter.has(t.id) + '">' + swHTML(t) + esc(t.name) + ' <i>' + (c[t.id] || 0) + '</i></button><button type="button" class="chipedit" data-typeedit="' + esc(t.id) + '" aria-label="Modifier le type ' + esc(t.name) + '" title="Modifier le nom et la couleur">✎</button></span>';
     }).join("");
     if (state.filter.size) h += '<button class="chip clear" data-type="__clear">Tout afficher</button>';
     $("#legend").innerHTML = h;
@@ -521,7 +532,7 @@ button { cursor: pointer; }
     }
     var cls = "task" + (n ? " typed" : "") + (bold ? " b" : "") + (t.study ? " u" : "") + (t.todo ? " i" : "");
     return '<li class="' + cls + '" style="' + style + '" draggable="true" data-id="' + esc(t.id) + '">' + (n ? '<span class="stripe" aria-hidden="true"></span>' : "") +
-      '<button class="chk" role="checkbox" aria-checked="false" data-chk="' + esc(t.id) + '" aria-label="Terminer : ' + esc(t.ref) + '">' + CHECK + '</button>' +
+      '<button class="chk" role="checkbox" aria-checked="false" data-chk="' + esc(t.id) + '" aria-label="Terminer : ' + esc(t.ref) + '">' + CHECK + '</button><button class="dbx" data-dbx="' + esc(t.ref) + '" title="Ouvrir le dossier Dropbox" aria-label="Ouvrir le dossier Dropbox de ' + esc(t.ref) + '">'+FOLDER_SVG+'</button>' +
       '<div class="tbody"><button class="open" data-open="' + esc(t.id) + '" style="width:100%"><span class="line1"><span class="ref">' + esc(t.ref) + '</span></span>' +
       (t.note ? '<span class="note">' + esc(t.note) + '</span>' : '') + (ks.length ? '<span class="sr">Types : ' + esc(ks.map(function (k) { return state.d.types.get(k).name; }).join(", ")) + '</span>' : '') + '</button>' +
       (t.els && Object.keys(t.els).some(function (k) { return t.els[k] && state.d.elements.has(k); }) ? '<div class="line1" style="padding:0 8px 7px 4px">' + pillsHTML(t) + '</div>' : '') + '</div></li>';
@@ -744,6 +755,10 @@ button { cursor: pointer; }
     if (e.target.closest("[data-dlgno]")) closeDlg();
   });
   $("#dlgscrim").addEventListener("click", closeDlg);
+  function openDossier(ref) {
+    if (!window.agoa || !agoa.dropboxOpen) { toast("L’ouverture des dossiers n’est disponible que dans l’application Windows."); return; }
+    agoa.dropboxOpen(ref).catch(function (e) { var i = agoa.info ? agoa.info(e) : { message: String(e && e.message || e) }; toast(i.message); });
+  }
   function closeMenu() { state.menu = null; $("#menu").hidden = true; }
   function openMenu(id, btn) {
     var t = state.d.tasks.get(id); if (!t) return;
@@ -796,7 +811,7 @@ button { cursor: pointer; }
     var t = state.d.tasks.get(state.openId); if (!t) return;
     var ae = document.activeElement, keep = ae && ae.id;
     var h = '<div class="sh-h"><h2>Dossier</h2><button class="x" data-close="1" aria-label="Fermer">×</button></div>';
-    h += '<div class="field"><label for="fRef">Référence</label><input id="fRef" type="text" autocomplete="off" value="' + esc(t.ref) + '"></div>';
+    h += '<div class="field"><label for="fRef">Référence</label><input id="fRef" type="text" autocomplete="off" value="' + esc(t.ref) + '"><div class="dbxrow" style="margin-top:6px"><button type="button" class="btn btn-outline small" data-dbxopen="' + esc(t.id) + '">' + FOLDER_SVG + ' Ouvrir le dossier Dropbox</button></div></div>';
     h += '<div class="field"><label for="fNote">Note</label><textarea id="fNote" rows="3">' + esc(t.note || "") + '</textarea></div>';
     h += '<div class="field"><span class="lab" id="lTy">Types (plusieurs possibles)</span><div class="seg" role="group" aria-labelledby="lTy"><button type="button" data-settype="" aria-pressed="' + !typesOf(t).length + '"><span class="sw"></span>Aucun</button>' +
       types().map(function (y) { return '<button type="button" data-settype="' + esc(y.id) + '" style="--c:' + (isBold(y) ? "var(--ink-soft)" : cssOf(y.color)) + '" aria-pressed="' + (typesOf(t).indexOf(y.id) >= 0) + '">' + swHTML(y) + esc(y.name) + '</button>'; }).join("") + '</div></div>';
@@ -856,6 +871,7 @@ button { cursor: pointer; }
     var id = state.openId, b;
     if (e.target.closest("[data-close]")) { closeAll(); return; }
     if ((b = e.target.closest("[data-settype]"))) { var cur = typesOf(state.d.tasks.get(id)), v = b.dataset.settype, nx = !v ? [] : cur.indexOf(v) >= 0 ? cur.filter(function (x) { return x !== v; }) : cur.concat([v]); edit("tasks", id, { types: nx, status: "" }); fillSheet(); return; }
+    if ((b = e.target.closest("[data-dbxopen]"))) { var dt = state.d.tasks.get(b.dataset.dbxopen); if (dt) openDossier(dt.ref); return; }
     if ((b = e.target.closest("[data-askdelel]"))) { askDeleteEl(b.dataset.askdelel); return; }
     if ((b = e.target.closest("[data-setel]"))) { var p = b.dataset.setel.split("|"), t = state.d.tasks.get(id), o = {}; o[p[0]] = p[1]; edit("tasks", id, { els: Object.assign({}, t.els || {}, o) }); fillSheet(); return; }
     if ((b = e.target.closest("[data-arch]"))) { var q = b.dataset.arch.split("|"); archive(q[0], q[1]); fillSheet(); return; }
@@ -878,12 +894,19 @@ button { cursor: pointer; }
       var k = "delel:" + e.id;
       return '<div class="cfgrow el"><input type="text" data-ename="' + esc(e.id) + '" value="' + esc(e.name) + '" aria-label="Nom de l’élément"><button class="btn btn-danger small' + (isArmed(k) ? " armed" : "") + '" data-delel="' + esc(e.id) + '">' + (isArmed(k) ? "Confirmer" : "Supprimer") + '</button></div>';
     }).join("") + '<form class="newel" id="cfgNewEl"><label class="sr" for="cNewEl">Nouvel élément</label><input id="cNewEl" type="text" placeholder="Nouvel élément" autocomplete="off"><button class="btn btn-outline small" type="submit">+ Créer</button></form></div>';
+    var dx = state.dbx || {};
+    h += '<div><h3 class="cfgh">Dossiers Dropbox (ce poste)</h3><p class="empty">Dossier « 01-OPERATIONS » de la Dropbox sur cet ordinateur : le bouton dossier de chaque fiche l’ouvre directement.</p><p class="dbxpath">' +
+      (dx.root ? 'Emplacement : <b>' + esc(dx.root) + '</b>' : dx.auto ? 'Détecté automatiquement : <b>' + esc(dx.auto) + '</b>' : 'Aucun emplacement défini.') + '</p><div class="dbxrow"><button class="btn btn-outline small" data-dbxpick="1">Choisir le dossier…</button>' +
+      (dx.root ? '<button class="btn btn-plain small" data-dbxclear="1">Revenir à la détection automatique</button>' : '') + '</div></div>';
     cfg.innerHTML = h;
+    if (!state.dbxLoaded && window.agoa && agoa.dropboxGet) { state.dbxLoaded = true; agoa.dropboxGet().then(function (r) { state.dbx = r; if (!cfg.hidden) fillCfg(); }).catch(function () {}); }
   }
   $("#btnCfg").addEventListener("click", function () { lastFocus = this; sheet.hidden = true; state.openId = null; closeMenu(); disarm(); fillCfg(); showScrim(); cfg.hidden = false; });
   cfg.addEventListener("click", function (e) {
     var b;
     if (e.target.closest("[data-close]")) { closeAll(); return; }
+    if ((b = e.target.closest("[data-dbxpick]"))) { agoa.dropboxPick().then(function (r) { state.dbx = r; fillCfg(); if (r.root) toast("Emplacement enregistré pour ce poste."); }).catch(function (er) { toast(agoa.info(er).message); }); return; }
+    if ((b = e.target.closest("[data-dbxclear]"))) { agoa.dropboxClear().then(function (r) { state.dbx = r; fillCfg(); }).catch(function () {}); return; }
     if ((b = e.target.closest("[data-deltype]"))) {
       var id = b.dataset.deltype, k = "deltype:" + id;
       if (!isArmed(k)) { arm(k); return; }
@@ -918,6 +941,7 @@ button { cursor: pointer; }
   var board = $("#board");
   board.addEventListener("click", function (e) {
     var b;
+    if ((b = e.target.closest("[data-dbx]"))) { openDossier(b.dataset.dbx); return; }
     if ((b = e.target.closest("[data-chk]"))) { openMenu(b.dataset.chk, b); return; }
     if ((b = e.target.closest("[data-unchk]"))) { restore(b.dataset.unchk); return; }
     if ((b = e.target.closest("[data-el]"))) {
@@ -1034,6 +1058,8 @@ button { cursor: pointer; }
 
   /* ---------- barre d'outils, onglets, types ---------- */
   $("#legend").addEventListener("click", function (e) {
+    var eb = e.target.closest("[data-typeedit]");
+    if (eb) { var ty = state.d.types.get(eb.dataset.typeedit); if (!ty) return; state.editType = ty.id; state.newType.color = ty.color || "none"; state.typeOpen = true; $("#typeForm").hidden = false; $("#tName").value = ty.name; $("#tSubmit").textContent = "Enregistrer"; swatches(); $("#tName").focus(); return; }
     var b = e.target.closest("[data-type]"); if (!b) return;
     if (b.dataset.type === "__clear") state.filter.clear(); else if (state.filter.has(b.dataset.type)) state.filter.delete(b.dataset.type); else state.filter.add(b.dataset.type);
     renderLegend(); renderBoard();
@@ -1054,13 +1080,15 @@ button { cursor: pointer; }
   function swatches() {
     $("#tSw").innerHTML = COLORS.map(function (c) { return '<button type="button" style="--c:' + (c[0] === "none" ? "var(--card)" : "var(--c-" + c[0] + ")") + '" data-sw="' + c[0] + '" title="' + c[1] + '" aria-label="' + c[1] + '" aria-pressed="' + (state.newType.color === c[0]) + '">' + (c[0] === "none" ? "<b>B</b>" : "") + '</button>'; }).join("") + '<input type="color" class="cpick" id="tPick" value="' + hexOf(state.newType.color) + '" aria-label="Couleur personnalisée" title="Couleur personnalisée">';
   }
-  $("#btnType").addEventListener("click", function () { state.typeOpen = !state.typeOpen; $("#typeForm").hidden = !state.typeOpen; if (state.typeOpen) { swatches(); $("#tName").focus(); } });
-  $("#tCancel").addEventListener("click", function () { state.typeOpen = false; $("#typeForm").hidden = true; });
+  function endTypeForm() { state.editType = null; state.typeOpen = false; $("#typeForm").hidden = true; $("#tName").value = ""; $("#tSubmit").textContent = "Créer le type"; }
+  $("#btnType").addEventListener("click", function () { if (state.editType) { state.editType = null; state.typeOpen = false; $("#tName").value = ""; $("#tSubmit").textContent = "Créer le type"; } state.typeOpen = !state.typeOpen; $("#typeForm").hidden = !state.typeOpen; if (state.typeOpen) { swatches(); $("#tName").focus(); } });
+  $("#tCancel").addEventListener("click", endTypeForm);
   $("#tSw").addEventListener("change", function (e) { if (e.target.id === "tPick") { state.newType.color = e.target.value.toLowerCase(); swatches(); } });
   $("#tSw").addEventListener("click", function (e) { var b = e.target.closest("[data-sw]"); if (b) { state.newType.color = b.dataset.sw; swatches(); } });
   $("#typeForm").addEventListener("submit", function (e) {
     e.preventDefault();
     var v = $("#tName").value.trim(); if (!v) return;
+    if (state.editType) { var tid = state.editType; endTypeForm(); edit("types", tid, { name: v, color: state.newType.color }); toast("Type « " + v + " » modifié."); return; }
     create("types", { name: v, color: state.newType.color, order: (types().length ? types()[types().length - 1].order || 0 : 0) + 1 });
     $("#tName").value = ""; state.typeOpen = false; $("#typeForm").hidden = true; renderAll(); toast("Type « " + v + " » créé.");
   });

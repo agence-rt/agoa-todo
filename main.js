@@ -1,5 +1,6 @@
 "use strict";
-const { app, BrowserWindow, ipcMain, shell, safeStorage, Menu } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, safeStorage, Menu, dialog } = require("electron");
+const dropbox = require("./src/dropbox");
 const path = require("path");
 const { Vault } = require("./src/vault");
 const { Services, readGoogleClient } = require("./src/services");
@@ -62,6 +63,25 @@ function registerIpc() {
   handle("db:write", (w) => { svc.requireSession(); return svc.requireStore().write(w).then(() => true); });
   handle("ragic:search", (q) => svc.searchOperations(q));
   handle("mail:send", (m) => svc.sendMail(m));
+  /* Dossiers Dropbox : l'emplacement est propre à chaque poste (coffre local) */
+  const dbxRoot = () => svc.vault.get("dropbox_root") || "";
+  handle("dropbox:get", () => { const saved = dbxRoot(), auto = saved ? "" : (dropbox.detectRoot() || ""); return { root: saved, auto }; });
+  handle("dropbox:pick", async () => {
+    const r = await dialog.showOpenDialog(win, { title: "Choisir le dossier 01-OPERATIONS de la Dropbox", properties: ["openDirectory"] });
+    if (r.canceled || !r.filePaths[0]) return { root: dbxRoot(), auto: "" };
+    const root = dropbox.resolveRoot(r.filePaths[0]); svc.vault.set("dropbox_root", root);
+    return { root, auto: "" };
+  });
+  handle("dropbox:clear", () => { svc.vault.remove("dropbox_root"); return { root: "", auto: dropbox.detectRoot() || "" }; });
+  handle("dropbox:open", async (ref) => {
+    const root = dbxRoot() || dropbox.detectRoot();
+    if (!root) throw Object.assign(new Error("Emplacement de la Dropbox non défini : indiquez le dossier 01-OPERATIONS dans Réglages."), { code: "dropbox_root" });
+    const dir = dropbox.findDossier(root, ref);
+    if (!dir) throw Object.assign(new Error("Aucun dossier « " + ref + " » trouvé dans " + root + "."), { code: "dropbox_notfound" });
+    const err = await shell.openPath(dir);
+    if (err) throw Object.assign(new Error("Ouverture impossible : " + err), { code: "dropbox_open" });
+    return dir;
+  });
 }
 
 function createWindow() {
