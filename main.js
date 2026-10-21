@@ -5,6 +5,7 @@ const path = require("path");
 const { Vault } = require("./src/vault");
 const { Services, readGoogleClient } = require("./src/services");
 const { createSplash } = require("./src/splash");
+const { readShared } = require("./src/shared");
 const { runUpdateCheck } = require("./src/updater");
 
 if (!app.requestSingleInstanceLock()) { app.quit(); }
@@ -33,6 +34,7 @@ function boot() {
   svc = new Services({
     vault, googleClient, ragicProtocol: process.env.AGOA_RAGIC_PROTOCOL || undefined,   // variable réservée aux essais
     openExternal: (url) => shell.openExternal(url),
+    shared: () => readShared(),
     log: (m) => console.log("[AGOA TD]", m)
   });
   svc.listeners.add({
@@ -53,7 +55,11 @@ function handle(name, fn) {
 }
 
 function registerIpc() {
-  handle("app:state", () => svc.state());
+  handle("app:state", async () => {      // reprend les connexions d'AGOA Launcher si elles ont changé (clé Ragic, compte Google)
+    const ch = await svc.refreshShared();
+    if (ch.ragic && !svc.starting) await svc.startStore();
+    return svc.state();
+  });
   handle("auth:signIn", async () => { await svc.auth.signIn(); return svc.state(); });
   handle("auth:signOut", async () => { await svc.signOut(); return svc.state(); });
   handle("ragic:setup", (key) => svc.setupRagic(key));

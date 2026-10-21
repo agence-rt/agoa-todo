@@ -16,6 +16,7 @@
       show(steps(1) + "<h1>Connexion</h1><p>Connectez-vous avec votre compte Google de l’agence (@" + esc(st.allowedDomain) + ").</p>" + err(message) +
         (st.googleConfigured ? "" : err("Cette version n’a pas d’identifiants Google : voir le README du dépôt (section Google).")) +
         '<button class="primary" id="go"' + (st.googleConfigured ? "" : " disabled") + ">Se connecter avec Google</button>" +
+        "<p><small>Astuce : dans AGOA Launcher, le bouton CONNEXIONS enregistre votre compte Google et la clé Ragic une seule fois pour toutes les applications AGOA.</small></p>" +
         "<p><small>Une fenêtre de votre navigateur va s’ouvrir. L’autorisation d’envoyer des courriels sert uniquement à transmettre la liste à facturer à la comptabilité.</small></p>");
       document.getElementById("go").onclick = function () {
         if (busy) return; busy = true; this.disabled = true; this.textContent = "En attente de Google…";
@@ -26,6 +27,7 @@
     if (!st.ragicConfigured) {
       show(steps(2) + "<h1>Base Ragic</h1><p>Bonjour " + esc((st.user && st.user.name) || "") + ". Saisissez la clé API Ragic de l’agence (la même que pour le suivi du temps). Elle est conservée, chiffrée, sur ce poste.</p>" + err(message) +
         '<label for="k">Clé API Ragic</label><input id="k" type="password" autocomplete="off" spellcheck="false"><button class="primary" id="ok">Valider</button>' +
+        '<p><small>Astuce : AGOA Launcher > CONNEXIONS enregistre cette clé une seule fois pour toutes les applications AGOA.</small></p>' +
         '<button class="link" id="out" type="button">Changer de compte Google</button>');
       var k = document.getElementById("k"); k.focus();
       var go = function () {
@@ -39,7 +41,7 @@
     if (st.starting) { show(steps(2) + "<h1>Connexion à Ragic…</h1><p>Chargement des données de l’agence.</p>"); setTimeout(refresh, 700); return; }
     // clé enregistrée mais base inaccessible
     var detail = st.error ? st.error.message : "La base Ragic ne répond pas.";
-    show(steps(2) + "<h1>Base Ragic indisponible</h1>" + err(detail) +
+    show(steps(2) + "<h1>Base Ragic indisponible</h1>" + err(detail) + (st.sharedRagic ? "<p><small>Cette clé vient d’AGOA Launcher : corrigez-la dans CONNEXIONS, puis cliquez sur Réessayer.</small></p>" : "") +
       '<button class="primary" id="retry">Réessayer</button><button class="link" id="key" type="button">Changer la clé Ragic</button>');
     document.getElementById("retry").onclick = function () { this.disabled = true; agoa.retry().then(render0, function (e) { refresh(agoa.info(e).message); }); };
     document.getElementById("key").onclick = function () { agoa.forgetRagic().then(function () { refresh(); }); };

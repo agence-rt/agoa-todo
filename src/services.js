@@ -15,8 +15,8 @@ function readGoogleClient(candidates, env) {
 }
 
 class Services {
-  constructor({ vault, openExternal, googleClient, fetchImpl, ragicProtocol, log }) {
-    this.vault = vault; this.fetchImpl = fetchImpl; this.protocol = ragicProtocol; this.log = log || (() => {});
+  constructor({ vault, openExternal, googleClient, fetchImpl, ragicProtocol, log, shared }) {
+    this.vault = vault; this.shared = shared || (async () => ({})); this.sharedInfo = { ragic: false, google: false }; this.fetchImpl = fetchImpl; this.protocol = ragicProtocol; this.log = log || (() => {});
     this.auth = new GoogleAuth({
       clientId: googleClient.clientId, clientSecret: googleClient.clientSecret, scopes: config.googleScopes,
       allowedDomain: config.allowedDomain, openExternal, vault, fetchImpl
@@ -29,12 +29,34 @@ class Services {
     return {
       googleConfigured: this.auth.configured,
       signedIn: this.auth.signedIn(), user: this.auth.user(),
-      ragicConfigured: !!key, ready: this.ready, starting: this.starting, error: this.error,
+      ragicConfigured: !!key, sharedRagic: this.sharedInfo.ragic, sharedGoogle: this.sharedInfo.google, ready: this.ready, starting: this.starting, error: this.error,
       allowedDomain: config.allowedDomain, mailTo: config.mailTo
     };
   }
 
+  /** Reprend les connexions saisies dans AGOA Launcher (prioritaires sur celles de ce poste). Retourne { ragic, google } : ce qui a changé. */
+  async refreshShared() {
+    let sh = {};
+    try { sh = (await this.shared()) || {}; } catch (e) { sh = {}; }
+    const changed = { ragic: false, google: false };
+    const r = sh.ragic;
+    this.sharedInfo.ragic = !!(r && r.key && r.host);
+    if (this.sharedInfo.ragic && (this.vault.get("ragic_key") !== r.key || this.vault.get("ragic_host") !== r.host)) {
+      this.vault.set("ragic_key", r.key); this.vault.set("ragic_host", r.host); changed.ragic = true;
+    }
+    const g = sh.google;     // le jeton n'est utilisable qu'avec l'identifiant client qui l'a émis
+    const sameClient = g && (!g.client_id || g.client_id === this.auth.clientId);
+    this.sharedInfo.google = !!(g && g.refresh_token && g.email && sameClient && String(g.email).toLowerCase().endsWith("@" + config.allowedDomain));
+    if (this.sharedInfo.google && this.vault.get("google_refresh") !== g.refresh_token) {
+      this.vault.set("google_refresh", g.refresh_token);
+      this.vault.set("google_profile", JSON.stringify({ email: String(g.email).toLowerCase(), name: g.name || g.email, picture: "", canSend: String(g.scopes || "gmail.send").includes("gmail.send") }));
+      this.auth.access = null; changed.google = true;
+    }
+    return changed;
+  }
+
   async startStore() {
+    await this.refreshShared();
     this.stopStore();
     const key = this.vault.get("ragic_key"), host = this.vault.get("ragic_host");
     if (!key || !host) { this.error = null; return; }
