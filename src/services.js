@@ -108,6 +108,7 @@ class Services {
     const opt = o.architects.find((a) => n(a) === n(column));
     return opt && !o.architectsExcluded.includes(opt) ? opt : null;
   }
+  architectOptions() { const o = config.ragic.operations; return o.architects.filter((a) => !o.architectsExcluded.includes(a)); }
   async assignArchitect({ ragic, ref, column }) {
     this.requireSession();
     const name = this.architectFor(column); if (!name) return { assigned: null };

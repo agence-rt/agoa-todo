@@ -52,6 +52,7 @@ test("l'application complète fonctionne sur Ragic", async (t) => {
     subscribe: async (coll, cb) => { svc.listeners.add({ snapshot: (c, docs) => c === coll && cb(docs) }); cb(svc.requireStore().docs(coll)); },
     write: async (w) => { svc.requireSession(); await svc.requireStore().write(w); return true; },
     searchOperations: (q) => svc.searchOperations(q), sendMail: (m) => svc.sendMail(m),
+    architectOptions: async () => svc.architectOptions(),
     assignArchitect: (a) => { archCalls.push(a); return svc.assignArchitect(a); },
     onStatus: () => {}, forgetRagic: async () => {}, signOut: async () => {}
   };
@@ -150,6 +151,16 @@ test("l'application complète fonctionne sur Ragic", async (t) => {
   d.querySelector('[data-open="c"]').click();
   d.querySelector("#fCol").value = "gaelle"; d.querySelector("#fCol").dispatchEvent(new w.Event("change", { bubbles: true })); await sleep(300);
   assert.equal(archCalls.length, 2); assert.equal(archCalls[1].column, "Gaëlle");
+  d.querySelector("#scrim").click();
+
+  // attribution en une fois pour toutes les fiches en cours
+  archCalls.length = 0;
+  d.querySelector("#btnCfg").click(); await sleep(50);
+  d.querySelector("[data-bulkarch]").click(); await sleep(200);
+  assert.equal(d.querySelector("#dlg").hidden, false);
+  assert.match(d.querySelector("#dlg").textContent, /1 fiche en cours/);
+  d.querySelector("[data-dlgbulk]").click(); await sleep(500);
+  assert.equal(archCalls.length, 1); assert.equal(archCalls[0].column, "Gaëlle");
   d.querySelector("#scrim").click();
 
   // envoi de la liste à facturer

@@ -70,6 +70,7 @@ function registerIpc() {
   handle("ragic:search", (q) => svc.searchOperations(q));
   handle("mail:send", (m) => svc.sendMail(m));
   handle("ragic:architect", (a) => svc.assignArchitect(a || {}));
+  handle("ragic:architectOptions", () => svc.architectOptions());
   /* Dossiers Dropbox : l'emplacement est propre à chaque poste (coffre local) */
   const dbxRoot = () => svc.vault.get("dropbox_root") || "";
   handle("dropbox:get", () => { const saved = dbxRoot(), auto = saved ? "" : (dropbox.detectRoot() || ""); return { root: saved, auto }; });

@@ -738,6 +738,43 @@ button { cursor: pointer; }
     state.d.tasks.forEach(function (t) { if (t.els && t.els[eid]) { var o = {}; o[eid] = ""; edit("tasks", t.id, { els: Object.assign({}, t.els, o) }); } });
     removeDoc("elements", eid);
   }
+  /* attribution en une fois : toutes les fiches en cours, selon leur colonne */
+  var bulk = { running: false, msg: "" };
+  function bulkTargets(opts) {
+    var ok = {}; opts.forEach(function (o) { ok[norm(o)] = true; });
+    return arr(state.d.tasks).filter(function (t) { var c = state.d.columns.get(t.person); return !t.done && !isSep(t) && c && ok[norm(c.name)]; });
+  }
+  function askBulkArchitects() {
+    if (!window.agoa || !agoa.architectOptions) { toast("Disponible uniquement dans l’application Windows."); return; }
+    agoa.architectOptions().then(function (opts) {
+      var n = bulkTargets(opts).length;
+      if (!n) { toast("Aucune fiche en cours dans une colonne de personne."); return; }
+      dlgFocus = document.activeElement;
+      var d = $("#dlg");
+      d.innerHTML = '<h2 id="dlgT">Attribuer les architectes ?</h2><p id="dlgP">Pour <b>' + n + ' fiche' + (n > 1 ? "s" : "") + ' en cours</b>, le champ « Architecte ? » de l’opération sera renseigné dans Ragic avec le nom de la colonne où se trouve la fiche (valeur actuelle remplacée).</p><div class="rowb"><button type="button" class="btn btn-plain" data-dlgno="1">Annuler</button><button type="button" class="btn btn-primary" data-dlgbulk="1">Attribuer</button></div>';
+      d.hidden = false; $("#dlgscrim").hidden = false; d.querySelector("[data-dlgno]").focus();
+    }).catch(function (e) { toast(agoa.info(e).message); });
+  }
+  function runBulkArchitects() {
+    agoa.architectOptions().then(function (opts) {
+      var list = bulkTargets(opts), i = 0, done = 0, skipped = 0, failed = 0, firstErr = "";
+      bulk.running = true;
+      function step() {
+        bulk.msg = "Attribution… " + i + " / " + list.length; if (!cfg.hidden) fillCfg();
+        if (i >= list.length) {
+          bulk.running = false; bulk.msg = ""; if (!cfg.hidden) fillCfg();
+          toast(done + " fiche" + (done > 1 ? "s" : "") + " attribuée" + (done > 1 ? "s" : "") + " dans Ragic" + (skipped ? ", " + skipped + " opération" + (skipped > 1 ? "s" : "") + " introuvable" + (skipped > 1 ? "s" : "") : "") + (failed ? ", " + failed + " en erreur (" + firstErr + ")" : "") + ".");
+          return;
+        }
+        var t = list[i++], c = state.d.columns.get(t.person);
+        agoa.assignArchitect({ ragic: t.ragic || "", ref: t.ref, column: c.name })
+          .then(function (r) { if (r && r.assigned) done++; else skipped++; })
+          .catch(function (e) { failed++; firstErr = firstErr || agoa.info(e).message; })
+          .then(step);
+      }
+      step();
+    }).catch(function (e) { bulk.running = false; toast(agoa.info(e).message); });
+  }
   function askDeleteEl(eid) {
     var e = state.d.elements.get(eid); if (!e) return;
     var n = 0; state.d.tasks.forEach(function (t) { if (t.els && t.els[eid]) n++; });
@@ -748,6 +785,7 @@ button { cursor: pointer; }
     d.querySelector("[data-dlgno]").focus();
   }
   $("#dlg").addEventListener("click", function (e) {
+    if (e.target.closest("[data-dlgbulk]")) { closeDlg(); runBulkArchitects(); return; }
     var ye = e.target.closest("[data-dlgel]");
     if (ye) { var eid = ye.dataset.dlgel; closeDlg(); removeElement(eid); renderAll(); if (!sheet.hidden) fillSheet(); if (!cfg.hidden) fillCfg(); toast("Élément supprimé."); return; }
     var y = e.target.closest("[data-dlgyes]");
@@ -905,6 +943,7 @@ button { cursor: pointer; }
     h += '<div><h3 class="cfgh">Dossiers Dropbox (ce poste)</h3><p class="empty">Dossier « 01-OPERATIONS » de la Dropbox sur cet ordinateur : le bouton dossier de chaque fiche l’ouvre directement.</p><p class="dbxpath">' +
       (dx.root ? 'Emplacement : <b>' + esc(dx.root) + '</b>' : dx.auto ? 'Détecté automatiquement : <b>' + esc(dx.auto) + '</b>' : 'Aucun emplacement défini.') + '</p><div class="dbxrow"><button class="btn btn-outline small" data-dbxpick="1">Choisir le dossier…</button>' +
       (dx.root ? '<button class="btn btn-plain small" data-dbxclear="1">Revenir à la détection automatique</button>' : '') + '</div></div>';
+    h += '<div><h3 class="cfgh">Architectes dans Ragic</h3><p class="empty">Renseigne « Architecte ? » dans les opérations Ragic pour toutes les fiches en cours, d’après leur colonne (Thomas exclu).</p><div class="dbxrow"><button class="btn btn-outline small" data-bulkarch="1"' + (bulk.running ? " disabled" : "") + '>' + (bulk.running ? esc(bulk.msg) : "Attribuer les architectes aux fiches en cours") + '</button></div></div>';
     cfg.innerHTML = h;
     if (!state.dbxLoaded && window.agoa && agoa.dropboxGet) { state.dbxLoaded = true; agoa.dropboxGet().then(function (r) { state.dbx = r; if (!cfg.hidden) fillCfg(); }).catch(function () {}); }
   }
@@ -912,6 +951,7 @@ button { cursor: pointer; }
   cfg.addEventListener("click", function (e) {
     var b;
     if (e.target.closest("[data-close]")) { closeAll(); return; }
+    if ((b = e.target.closest("[data-bulkarch]"))) { askBulkArchitects(); return; }
     if ((b = e.target.closest("[data-dbxpick]"))) { agoa.dropboxPick().then(function (r) { state.dbx = r; fillCfg(); if (r.root) toast("Emplacement enregistré pour ce poste."); }).catch(function (er) { toast(agoa.info(er).message); }); return; }
     if ((b = e.target.closest("[data-dbxclear]"))) { agoa.dropboxClear().then(function (r) { state.dbx = r; fillCfg(); }).catch(function () {}); return; }
     if ((b = e.target.closest("[data-deltype]"))) {

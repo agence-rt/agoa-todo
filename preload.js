@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld("agoa", {
   searchOperations: (q) => call("ragic:search", q),
   sendMail: (m) => call("mail:send", m),
   assignArchitect: (a) => call("ragic:architect", a),
+  architectOptions: () => call("ragic:architectOptions"),
   dropboxGet: () => call("dropbox:get"),
   dropboxPick: () => call("dropbox:pick"),
   dropboxClear: () => call("dropbox:clear"),
