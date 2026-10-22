@@ -54,3 +54,19 @@ test("base indisponible : erreur lisible, état « non prêt »", async (t) => {
   assert.equal(s.ready, false); assert.equal(s.starting, false); assert.match(s.error.message, /Clé Ragic refusée/);
   assert.throws(() => svc.requireStore(), (e) => e.code === "not_ready");
 });
+
+test("étude déplacée dans une colonne de personne : « Architecte ? » mis à jour dans l'opération Ragic (sauf Thomas)", async (t) => {
+  const { fake, vault, svc } = await boot(t);
+  vault.set("ragic_key", "KEY"); vault.set("ragic_host", fake.host); await svc.startStore();
+  const o = config.ragic.operations, ops = fake.sheets[o.path].recs;
+  ops.set(801, { [o.code]: "STDIDIER55/57-D", [o.architect]: "Charlotte" });
+  ops.set(802, { [o.code]: "LECLERC52-J" });
+  assert.deepEqual([svc.architectFor("Gaëlle"), svc.architectFor("Hélène"), svc.architectFor("Andréa"), svc.architectFor("JB"), svc.architectFor("Thomas"), svc.architectFor("RV"), svc.architectFor("DTG")], ["Gaelle", "Helene", "Andréa", "JB", null, null, null]);
+  assert.deepEqual(await svc.assignArchitect({ ragic: "801", ref: "x", column: "Gaëlle" }), { assigned: "Gaelle" });
+  assert.equal(ops.get(801)[o.architect], "Gaelle");
+  assert.deepEqual(await svc.assignArchitect({ ref: "leclerc52-j", column: "Marie" }), { assigned: "Marie" }, "retrouvé par sa référence");
+  assert.equal(ops.get(802)[o.architect], "Marie");
+  assert.deepEqual(await svc.assignArchitect({ ragic: "801", ref: "x", column: "Thomas" }), { assigned: null });
+  assert.equal(ops.get(801)[o.architect], "Gaelle", "Thomas n'est jamais attribué");
+  assert.equal((await svc.assignArchitect({ ref: "INCONNU9-A", column: "Marie" })).assigned, null);
+});

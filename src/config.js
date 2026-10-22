@@ -15,7 +15,10 @@ module.exports = {
     boolFalse: "",                           // valeur écrite quand elle ne l'est pas
     operations: {                            // recherche des références (feuille Opérations)
       path: "/operations/10",
-      code: 1000295, objet: 1000280, syndic: 1000309, adresse: 1000307
+      code: 1000295, objet: 1000280, syndic: 1000309, adresse: 1000307,
+      architect: 1001784,                    // liste déroulante « Architecte ? »
+      architects: ["Marie", "Gaelle", "Hernan", "Thomas", "Andréa", "Charlotte", "JB", "Helene"],
+      architectsExcluded: ["Thomas"]        // Thomas ne gère que les rapports de visite : jamais attribué automatiquement
     },
     sheets: {
       columns:  { path: "/rendez-vous/6",  fields: {

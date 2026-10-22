@@ -45,12 +45,14 @@ test("l'application complète fonctionne sur Ragic", async (t) => {
   ops.set(501, { [o.code]: "MONTMARTRE4/6-A", [o.objet]: "Plancher", [o.syndic]: "GAURIAU", [o.adresse]: "4 rue Montmartre" });
   ops.set(502, { [o.code]: "AUTRE1-A", [o.objet]: "Toiture" });
 
+  const archCalls = [];
   const agoa = {
     info: (e) => ({ code: (e && e.code) || "error", message: String((e && e.message) || e || "") }),
     state: async () => svc.state(),
     subscribe: async (coll, cb) => { svc.listeners.add({ snapshot: (c, docs) => c === coll && cb(docs) }); cb(svc.requireStore().docs(coll)); },
     write: async (w) => { svc.requireSession(); await svc.requireStore().write(w); return true; },
     searchOperations: (q) => svc.searchOperations(q), sendMail: (m) => svc.sendMail(m),
+    assignArchitect: (a) => { archCalls.push(a); return svc.assignArchitect(a); },
     onStatus: () => {}, forgetRagic: async () => {}, signOut: async () => {}
   };
   const dom = await JSDOM.fromFile(path.join(__dirname, "..", "renderer", "index.html"), {
@@ -141,6 +143,14 @@ test("l'application complète fonctionne sur Ragic", async (t) => {
   dnd("drop", rcol.querySelector(".col-h")); await sleep(300);
   assert.equal(tasks().find((r) => r[f.key] === "c")[f.person], "rv", "dossier déplacé vers l'autre colonne");
   assert.ok(d.querySelector('section[data-col="rv"] [data-id="c"]'));
+
+  // l'étude déplacée dans la colonne d'une personne renseigne « Architecte ? » dans la fiche opération Ragic
+  assert.equal(archCalls.length, 1); assert.equal(archCalls[0].column, "RV");
+  assert.deepEqual(archCalls[0].ref, "LANDY67-A");
+  d.querySelector('[data-open="c"]').click();
+  d.querySelector("#fCol").value = "gaelle"; d.querySelector("#fCol").dispatchEvent(new w.Event("change", { bubbles: true })); await sleep(300);
+  assert.equal(archCalls.length, 2); assert.equal(archCalls[1].column, "Gaëlle");
+  d.querySelector("#scrim").click();
 
   // envoi de la liste à facturer
   d.querySelector('[data-person="__bill"]').click();

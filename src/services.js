@@ -102,6 +102,27 @@ class Services {
     return recs.map((r) => ({ record_id: r._ragicId, "CODE TRAVAUX": r[o.code] || "", Objet: r[o.objet] || "", syndic: r[o.syndic] || "", adresse: r[o.adresse] || "" }));
   }
 
+  /* Une étude déplacée dans la colonne d'une personne : cette personne devient « Architecte ? » de la fiche opération Ragic. */
+  architectFor(column) {
+    const o = config.ragic.operations, n = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    const opt = o.architects.find((a) => n(a) === n(column));
+    return opt && !o.architectsExcluded.includes(opt) ? opt : null;
+  }
+  async assignArchitect({ ragic, ref, column }) {
+    this.requireSession();
+    const name = this.architectFor(column); if (!name) return { assigned: null };
+    const st = this.requireStore(), o = config.ragic.operations;
+    let rid = ragic ? String(ragic) : "";
+    if (!rid && ref) {
+      const recs = await st.client.list(o.path, { where: [[o.code, "like", String(ref)]], fetchIds: [o.code], pageSize: 8, maxRecords: 8 });
+      const hit = recs.find((r) => String(r[o.code] || "").trim().toUpperCase() === String(ref).trim().toUpperCase());
+      rid = hit ? String(hit._ragicId) : "";
+    }
+    if (!rid) return { assigned: null, reason: "not_found" };
+    await st.client.update(o.path, rid, { [o.architect]: name });
+    return { assigned: name };
+  }
+
   async sendMail(m) {
     this.requireSession();
     const to = Array.isArray(m.to) ? m.to : [m.to];

@@ -52,16 +52,41 @@ function detectRoot(env = process.env, home = require("os").homedir()) {
   return null;
 }
 
-/** Dossier d'un dossier de l'agence (ex. JUMIN11-D) ; à défaut, dossier de l'opération (JUMIN11). */
+/* Clé de comparaison : sans accents ni casse ni séparateurs, car « / » devient « - » ou « _ » dans Dropbox (STDIDIER55/57 -> STDIDIER55-57) */
+const loose = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, "");
+
+/** Sépare une référence en immeuble et indice : « STDIDIER55/57-D » -> { building: "STDIDIER55/57", index: "D" } */
+function splitRef(ref) {
+  const r = String(ref || "").trim();
+  const m = /^(.*?)[\s_-]+([A-Za-z]{1,2})$/.exec(r);
+  return m && m[1] ? { building: m[1], index: m[2] } : { building: r, index: "" };
+}
+
+/** Dossier d'une fiche : 01-OPERATIONS\(S)\STDIDIER55-57\D - MURET RUE ; à défaut de l'indice, le dossier de l'immeuble. */
 function findDossier(root, ref) {
-  const code = strip(ref);
-  if (!root || !code) return null;
-  const first = code[0], letterDirs = subdirs(root).filter((d) => { const m = /^\((.)\)$/.exec(d); return m && (m[1].toUpperCase() === first || (!/[A-Z]/.test(first) && m[1] === "0")); });
-  const tryNames = [code];
-  const op = code.replace(/-[A-Z]$/, ""); if (op !== code) tryNames.push(op);
-  for (const name of tryNames) {
-    for (const ld of letterDirs) { const hit = findDir(path.join(root, ld), name, 2); if (hit) return hit; }
-    const any = findDir(root, name, 3); if (any) return any;
+  const { building, index } = splitRef(ref);
+  const key = loose(building);
+  if (!root || !key) return null;
+  const first = key[0];
+  const letterDirs = subdirs(root).filter((d) => { const m = /^\((.)\)$/.exec(d); return m && (m[1].toUpperCase() === first || (/[0-9]/.test(first) && m[1] === "0")); });
+  const matchIn = (dir) => subdirs(dir).find((d) => loose(d) === key);
+  let op = null;
+  for (const ld of letterDirs) { const hit = matchIn(path.join(root, ld)); if (hit) { op = path.join(root, ld, hit); break; } }
+  if (!op) op = findDir2(root, key);
+  if (!op) return null;
+  if (index) {
+    const want = index.toUpperCase();
+    const sub = subdirs(op).find((d) => { const m = /^([A-Za-z]{1,2})(?:\s*-\s*.*)?$/.exec(d.trim()); return m && m[1].toUpperCase() === want && (d.trim().length === m[1].length || /^\S+\s*-/.test(d.trim())); });
+    if (sub) return path.join(op, sub);
+  }
+  return op;
+}
+function findDir2(root, key) {
+  let level = [root];
+  for (let depth = 0; depth < 2; depth++) {
+    const next = [];
+    for (const dir of level) for (const d of subdirs(dir)) { if (loose(d) === key) return path.join(dir, d); next.push(path.join(dir, d)); }
+    level = next;
   }
   return null;
 }
