@@ -40,3 +40,33 @@ test("les écouteurs sont retirés", async () => {
   const u = fake((x) => x.emit("update-not-available", {})); await run(u);
   assert.strictEqual(u.listenerCount("error"), 0);
 });
+
+const { startPeriodicCheck } = require("../src/updater");
+const periodic = (script, opts = {}) => {
+  const u = fake(script); const calls = { asked: [], progress: [], ready: [] };
+  const p = startPeriodicCheck({ updater: u, intervalMs: 3600000, ask: async (i) => { calls.asked.push(i.version); return opts.yes !== false; }, onProgress: (x) => calls.progress.push(x), onReady: async (i) => calls.ready.push(i.version), checkTimeoutMs: 200, downloadTimeoutMs: 500 });
+  return { u, p, calls };
+};
+test("vérification périodique : rien de nouveau, aucune fenêtre", async () => {
+  const { p, calls } = periodic((u) => u.emit("update-not-available", {}));
+  const r = await p.checkNow(); p.stop();
+  assert.strictEqual(r.reason, "none"); assert.deepStrictEqual(calls.asked, []);
+});
+test("vérification périodique : version disponible, acceptée -> téléchargée puis installée", async () => {
+  const { u, p, calls } = periodic((x) => x.emit("update-available", { version: "1.2.3" }));
+  const r = await p.checkNow(); p.stop();
+  assert.strictEqual(r.reason, "installed"); assert.deepStrictEqual(calls.asked, ["1.2.3"]); assert.deepStrictEqual(calls.ready, ["1.2.3"]);
+  assert.ok(calls.progress.includes(40)); assert.strictEqual(u.listenerCount("update-available"), 0, "écouteurs retirés");
+});
+test("vérification périodique : « Plus tard » ne télécharge rien et sera reproposé", async () => {
+  let downloads = 0;
+  const { u, p, calls } = periodic((x) => x.emit("update-available", { version: "1.2.3" }), { yes: false });
+  const orig = u.downloadUpdate; u.downloadUpdate = async () => { downloads++; return orig(); };
+  assert.strictEqual((await p.checkNow()).reason, "declined"); assert.strictEqual((await p.checkNow()).reason, "declined"); p.stop();
+  assert.strictEqual(downloads, 0); assert.deepStrictEqual(calls.asked, ["1.2.3", "1.2.3"]);
+});
+test("vérification périodique : erreur réseau ou absence de réponse -> silence", async () => {
+  const a = periodic((u) => u.emit("error", new Error("net::ERR_INTERNET_DISCONNECTED")));
+  assert.strictEqual((await a.p.checkNow()).reason, "error"); a.p.stop(); assert.deepStrictEqual(a.calls.asked, []);
+  const b = periodic(() => {}); assert.strictEqual((await b.p.checkNow()).reason, "error"); b.p.stop();
+});

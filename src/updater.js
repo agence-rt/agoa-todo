@@ -48,4 +48,45 @@ function runUpdateCheck({ updater, onStatus, isPackaged, checkTimeoutMs = 12000,
   });
 }
 
-module.exports = { runUpdateCheck, errText };
+/* Vérification périodique pendant que l'application tourne : si une version est disponible, ask(info) propose
+   l'installation (fenêtre) ; sur « oui », téléchargement puis onReady(info) (redémarrage). Ne lève jamais d'erreur.
+   Une vérification à la fois ; un refus (« Plus tard ») est reproposé à la vérification suivante. */
+function startPeriodicCheck({ updater, ask, onProgress = () => {}, onReady, intervalMs = 60 * 60 * 1000, checkTimeoutMs = 30000, downloadTimeoutMs = 15 * 60 * 1000, log = () => {} }) {
+  let busy = false, stopped = false, timer = null;
+  updater.autoDownload = false; updater.autoInstallOnAppQuit = false; updater.allowPrerelease = false;
+
+  const waitFor = (start, events, timeoutMs) => new Promise((resolve) => {
+    const handlers = {}; let t = null, over = false;
+    const end = (v) => { if (over) return; over = true; clearTimeout(t); Object.entries(handlers).forEach(([ev, fn]) => updater.removeListener(ev, fn)); resolve(v); };
+    Object.entries(events).forEach(([ev, map]) => { handlers[ev] = (arg) => { const v = map(arg); if (v !== undefined) end(v); }; updater.on(ev, handlers[ev]); });
+    handlers.error = (e) => end({ error: e }); updater.on("error", handlers.error);
+    t = setTimeout(() => end({ error: new Error("délai dépassé") }), timeoutMs);
+    Promise.resolve().then(start).catch((e) => end({ error: e }));
+  });
+
+  async function checkNow() {
+    if (busy || stopped) return { reason: "busy" };
+    busy = true;
+    try {
+      const found = await waitFor(() => updater.checkForUpdates(), { "update-available": (info) => ({ info }), "update-not-available": () => ({ none: true }) }, checkTimeoutMs);
+      if (found.error) { log("vérification : " + (found.error.message || found.error)); return { reason: "error" }; }
+      if (!found.info) return { reason: "none" };
+      let yes = false;
+      try { yes = await ask(found.info); } catch (e) { log(String(e)); }
+      if (!yes) return { reason: "declined", version: found.info.version };
+      const got = await waitFor(() => updater.downloadUpdate(), {
+        "download-progress": (p) => { onProgress(Math.round((p && p.percent) || 0)); return undefined; },
+        "update-downloaded": (info) => ({ info })
+      }, downloadTimeoutMs);
+      if (got.error) { onProgress(-1); log("téléchargement : " + (got.error.message || got.error)); return { reason: "error", version: found.info.version }; }
+      onProgress(-1);
+      await onReady(got.info || found.info);
+      return { reason: "installed", version: found.info.version };
+    } finally { busy = false; }
+  }
+  const tick = () => { if (stopped) return; checkNow().catch((e) => log(String(e))).then(() => { if (!stopped) { timer = setTimeout(tick, intervalMs); if (timer.unref) timer.unref(); } }); };
+  timer = setTimeout(tick, intervalMs); if (timer.unref) timer.unref();
+  return { checkNow, stop() { stopped = true; clearTimeout(timer); } };
+}
+
+module.exports = { runUpdateCheck, startPeriodicCheck, errText };

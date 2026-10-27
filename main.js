@@ -6,7 +6,7 @@ const { Vault } = require("./src/vault");
 const { Services, readGoogleClient } = require("./src/services");
 const { createSplash } = require("./src/splash");
 const { readShared } = require("./src/shared");
-const { runUpdateCheck } = require("./src/updater");
+const { runUpdateCheck, startPeriodicCheck } = require("./src/updater");
 
 if (!app.requestSingleInstanceLock()) { app.quit(); }
 
@@ -112,9 +112,9 @@ async function startup() {
   const splash = noSplash ? null : createSplash({ BrowserWindow, version: app.getVersion(), rendererDir: RENDERER });
   const t0 = Date.now();
   let result = { action: "continue" };
+  let updater = null;
+  if (app.isPackaged) { try { updater = require("electron-updater").autoUpdater; } catch (e) { console.error(e); } }
   if (splash) {
-    let updater = null;
-    if (app.isPackaged) { try { updater = require("electron-updater").autoUpdater; } catch (e) { console.error(e); } }
     result = await runUpdateCheck({
       updater: updater || { on() {}, removeListener() {}, checkForUpdates: () => Promise.reject(new Error("indisponible")) },
       onStatus: (s) => splash.status(s), isPackaged: app.isPackaged && !!updater,
@@ -130,6 +130,24 @@ async function startup() {
   createWindow();
   win.once("ready-to-show", () => { win.show(); if (splash) splash.close(); });
   boot().catch((e) => console.error(e));
+  if (updater) watchUpdates(updater);
+}
+/* Vérification toutes les heures pendant que l'application est ouverte : fenêtre de proposition si une version est disponible */
+function watchUpdates(updater) {
+  const every = Number(process.env.AGOA_UPDATE_EVERY_MS) || 60 * 60 * 1000;
+  startPeriodicCheck({
+    updater, intervalMs: every, log: (m) => console.log("[AGOA TD] mise à jour — " + m),
+    ask: async (info) => {
+      const r = await dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, {
+        type: "info", title: "AGOA TD — mise à jour", message: "La version " + (info.version || "") + " d’AGOA TD est disponible.",
+        detail: "Installer maintenant ? L’application va se fermer puis se rouvrir. Vos modifications sont déjà enregistrées dans Ragic.",
+        buttons: ["Installer maintenant", "Plus tard"], defaultId: 0, cancelId: 1, noLink: true
+      });
+      return r.response === 0;
+    },
+    onProgress: (p) => { if (win && !win.isDestroyed()) win.setProgressBar(p < 0 ? -1 : p / 100); },
+    onReady: () => { try { updater.quitAndInstall(false, true); } catch (e) { console.error(e); } }
+  });
 }
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
