@@ -73,6 +73,14 @@ test("l'application complète fonctionne sur Ragic", async (t) => {
   assert.ok(d.querySelector("#btnAcct"), "pastille du compte");
   assert.equal(d.querySelector("#btnAcct").textContent, "Dieu");
 
+  // la recherche surligne les textes qui correspondent (sans tenir compte des accents ni de la casse)
+  const q = d.querySelector("#q"); q.value = "jum"; q.dispatchEvent(new w.Event("input", { bubbles: true }));
+  assert.deepEqual([...d.querySelectorAll("mark.hit")].map((x) => x.textContent), ["JUM"]);
+  q.value = "<b>"; q.dispatchEvent(new w.Event("input", { bubbles: true }));
+  assert.equal(d.querySelectorAll("mark.hit").length, 0); assert.equal(d.querySelectorAll(".task b").length, 0, "pas d'injection HTML");
+  q.value = ""; q.dispatchEvent(new w.Event("input", { bubbles: true }));
+  assert.equal(d.querySelectorAll("mark.hit").length, 0);
+
   // recherche Ragic puis ajout
   d.querySelector('[data-add="rv"]').click();
   const inp = d.querySelector(".addinput"); inp.value = "MONTM"; inp.dispatchEvent(new w.Event("input", { bubbles: true }));

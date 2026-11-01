@@ -96,6 +96,7 @@ button { cursor: pointer; }
 .search input { width: 260px; max-width: 100%; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
 .legend { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px 4px 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); font-size: 13px; }
+mark.hit { background: #fff200; color: #000; border-radius: 2px; padding: 0 1px; box-shadow: 0 0 0 1px #fff200; }
 .dbx { position: absolute; top: 5px; right: 5px; z-index: 1; display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 4px; background: var(--card); color: var(--ink-soft); opacity: 0; }
 .task:hover .dbx, .dbx:focus-visible { opacity: 1; }
 .dbx:hover { color: var(--teal); background: var(--hover); }
@@ -420,6 +421,21 @@ button { cursor: pointer; }
   var isBold = function (y) { return y && y.color === "none"; };
   var swHTML = function (y) { return isBold(y) ? '<span class="sw bold">B</span>' : '<span class="sw"></span>'; };
   var typeVar = function (id) { var t = state.d.types.get(id); return t ? cssOf(t.color) : ""; };
+  /* texte échappé, avec les occurrences de la recherche surlignées (sans tenir compte des accents ni de la casse) */
+  function hl(text) {
+    text = String(text == null ? "" : text);
+    var q = state.q ? norm(state.q) : "";
+    if (!q) return esc(text);
+    var flat = "", map = [];
+    for (var i = 0; i < text.length; i++) { var n = norm(text[i]); for (var k = 0; k < n.length; k++) { flat += n[k]; map.push(i); } }
+    var out = "", last = 0, from = 0, at;
+    while ((at = flat.indexOf(q, from)) >= 0) {
+      var a = map[at], b = map[at + q.length - 1] + 1;
+      if (a >= last) { out += esc(text.slice(last, a)) + '<mark class="hit">' + esc(text.slice(a, b)) + '</mark>'; last = b; }
+      from = at + q.length;
+    }
+    return out + esc(text.slice(last));
+  }
   function filtersOn() { return state.filter.size > 0 || !!state.q; }
   function visible(t) {
     if (isSep(t)) return !filtersOn();
@@ -533,8 +549,8 @@ button { cursor: pointer; }
     var cls = "task" + (n ? " typed" : "") + (bold ? " b" : "") + (t.study ? " u" : "") + (t.todo ? " i" : "");
     return '<li class="' + cls + '" style="' + style + '" draggable="true" data-id="' + esc(t.id) + '">' + (n ? '<span class="stripe" aria-hidden="true"></span>' : "") +
       '<button class="chk" role="checkbox" aria-checked="false" data-chk="' + esc(t.id) + '" aria-label="Terminer : ' + esc(t.ref) + '">' + CHECK + '</button><button class="dbx" data-dbx="' + esc(t.ref) + '" title="Ouvrir le dossier Dropbox" aria-label="Ouvrir le dossier Dropbox de ' + esc(t.ref) + '">'+FOLDER_SVG+'</button>' +
-      '<div class="tbody"><button class="open" data-open="' + esc(t.id) + '" style="width:100%"><span class="line1"><span class="ref">' + esc(t.ref) + '</span></span>' +
-      (t.note ? '<span class="note">' + esc(t.note) + '</span>' : '') + (ks.length ? '<span class="sr">Types : ' + esc(ks.map(function (k) { return state.d.types.get(k).name; }).join(", ")) + '</span>' : '') + '</button>' +
+      '<div class="tbody"><button class="open" data-open="' + esc(t.id) + '" style="width:100%"><span class="line1"><span class="ref">' + hl(t.ref) + '</span></span>' +
+      (t.note ? '<span class="note">' + hl(t.note) + '</span>' : '') + (ks.length ? '<span class="sr">Types : ' + esc(ks.map(function (k) { return state.d.types.get(k).name; }).join(", ")) + '</span>' : '') + '</button>' +
       (t.els && Object.keys(t.els).some(function (k) { return t.els[k] && state.d.elements.has(k); }) ? '<div class="line1" style="padding:0 8px 7px 4px">' + pillsHTML(t) + '</div>' : '') + '</div></li>';
   }
   function sepHTML(t) {
