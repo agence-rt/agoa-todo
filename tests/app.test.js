@@ -91,7 +91,8 @@ test("l'application complète fonctionne sur Ragic", async (t) => {
   const tasks = () => [...fake.sheets[config.ragic.sheets.tasks.path].recs.values()];
   const f = st.f.tasks;
   const added = tasks().find((r) => r[f.ref] === "MONTMARTRE4/6-A");
-  assert.ok(added, "dossier créé dans Ragic"); assert.equal(added[f.person], "rv"); assert.equal(added[f.note], "Plancher"); assert.equal(added[f.ragic], "501");
+  assert.ok(added, "dossier créé dans Ragic"); assert.equal(added[f.person], "rv"); assert.ok(Number(added[f.order]) < 1, "le nouveau dossier se place en haut de la colonne");
+  assert.ok(d.querySelector('section[data-col="rv"] li.task')?.dataset.id, "colonne affichée"); assert.equal(d.querySelector('section[data-col="rv"] li.task .ref').textContent, "MONTMARTRE4/6-A"); assert.equal(added[f.note], "Plancher"); assert.equal(added[f.ragic], "501");
 
   // changement de type depuis la fiche
   d.querySelector('[data-open="a"]').click();
@@ -152,6 +153,8 @@ test("l'application complète fonctionne sur Ragic", async (t) => {
   dnd("drop", rcol.querySelector(".col-h")); await sleep(300);
   assert.equal(tasks().find((r) => r[f.key] === "c")[f.person], "rv", "dossier déplacé vers l'autre colonne");
   assert.ok(d.querySelector('section[data-col="rv"] [data-id="c"]'));
+  assert.equal(d.querySelector('section[data-col="rv"] li.task').dataset.id, "c", "déposé sur un espace libre : en haut de la colonne");
+  assert.ok(d.querySelector('li[data-id="c"]').classList.contains("flash"), "animation sur la tuile déplacée");
 
   // l'étude déplacée dans la colonne d'une personne renseigne « Architecte ? » dans la fiche opération Ragic
   assert.equal(archCalls.length, 1); assert.equal(archCalls[0].column, "RV");
