@@ -105,7 +105,9 @@ test("l'application complète fonctionne sur Ragic", async (t) => {
   assert.ok(d.querySelector("#menu [data-archdel]"), "option supprimer");
   d.querySelector('[data-arch="a|rv"]').click(); await sleep(300);
   let ra = tasks().find((r) => r[f.key] === "a");
-  assert.equal(ra[f.done], "Yes"); assert.equal(ra[f.billing], "À facturer"); assert.match(ra[f.doneAt], /^\d{4}\/\d{2}\/\d{2}$/);
+  assert.notEqual(ra[f.done], "Yes", "RV : la fiche reste dans la colonne, non archivée");
+  const cp = tasks().find((r) => r[f.ref] === "JUMIN11-D" && r[f.key] !== "a");
+  assert.ok(cp, "copie créée"); assert.equal(cp[f.billing], "À facturer"); assert.equal(cp[f.done], "Yes"); assert.match(cp[f.doneAt], /^\d{4}\/\d{2}\/\d{2}$/);
 
   // renommage d'un élément depuis la fiche : valable pour toutes les fiches
   d.querySelector('[data-open="a"]').click();
@@ -184,8 +186,8 @@ test("l'application complète fonctionne sur Ragic", async (t) => {
   const lists = [...fake.sheets[config.ragic.sheets.lists.path].recs.values()];
   assert.equal(lists.length, 1);
   assert.equal(JSON.parse(lists[0][st.f.lists.items]).n, 1);
-  ra = tasks().find((r) => r[f.key] === "a");
-  assert.equal(ra[f.billed], "1", "le dossier pointe vers la liste n°1");
+  const cp2 = tasks().find((r) => r[f.ref] === "JUMIN11-D" && r[f.key] !== "a");
+  assert.equal(cp2[f.billed], "1", "la copie pointe vers la liste n°1");
 
   // suppression avec fenêtre de confirmation
   d.querySelector('[data-person="all"]').click();

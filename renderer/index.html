@@ -396,7 +396,7 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
   function itemsOf(cid) { return arr(state.d.tasks).filter(function (t) { return t.person === cid && !t.done; }).sort(byOrder); }
   /* catégories de facturation : ordre d'affichage dans « À facturer » ; « staged » = la fiche reste dans la colonne sous « … envoyé » */
   var BILL_CATS = [
-    { k: "rv", label: "RV" }, { k: "rvtp", label: "RV TRAVAUX PRIVATIFS" },
+    { k: "rv", label: "RV", keep: true }, { k: "rvtp", label: "RV TRAVAUX PRIVATIFS" },
     { k: "consult", label: "CONSULTATION ENTREPRISES", staged: true }, { k: "offres", label: "ANALYSE DES OFFRES", staged: true },
     { k: "dtg", label: "DTG" }, { k: "pc", label: "PC" }
   ];
@@ -737,7 +737,8 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
     disarm();
     var cat = key && key !== "0" ? catOf(key) : null;
     if (!cat) { edit("tasks", id, { done: true, doneAt: today(), billing: "none", billed: "" }); closeMenu(); toast("Archivé."); return; }
-    if (!cat.staged) { state.flashT0 = null; state.flashId = id; edit("tasks", id, { done: true, doneAt: today(), billing: "tobill", billed: "", billCat: cat.k }); closeMenu(); toast("Archivé, ajouté à la colonne À facturer · " + cat.label + ".", true); return; }
+    if (!cat.staged && !cat.keep) { state.flashT0 = null; state.flashId = id; edit("tasks", id, { done: true, doneAt: today(), billing: "tobill", billed: "", billCat: cat.k }); closeMenu(); toast("Archivé, ajouté à la colonne À facturer · " + cat.label + ".", true); return; }
+    if (cat.keep) { var kid = create("tasks", { person: (state.d.tasks.get(id) || {}).person, order: nextOrder((state.d.tasks.get(id) || {}).person), ref: (state.d.tasks.get(id) || {}).ref, done: true, doneAt: today(), billing: "tobill", billed: "", billCat: cat.k, copyOf: id }); state.flashT0 = null; state.flashId = kid; renderAll(); closeMenu(); toast(cat.label + " : la fiche reste dans la colonne (à archiver vous-même), sa référence est ajoutée à À facturer.", true); return; }
     stage(id, cat); closeMenu();
     toast(cat.label + " : la fiche reste dans la colonne, sa référence est ajoutée à À facturer.", true);
   }
