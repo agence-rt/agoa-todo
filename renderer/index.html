@@ -364,7 +364,7 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
   var state = {
     d: { tasks: new Map(), columns: new Map(), types: new Map(), elements: new Map(), lists: new Map() },
     got: {}, error: null, db: null,
-    filter: new Set(), q: "", person: LS.get("agoa.td.person") || "all",
+    filter: new Set(), q: "", sel: (function () { var v = LS.get("agoa.td.person") || ""; return v === "all" ? [] : v.split(",").filter(Boolean); })(),
     openId: null, adding: null, addingSep: null, editSep: null, colMenu: null, addCol: false,
     expanded: new Set(), archOpen: new Set(), armed: null, menu: null, sendStep: 0, newType: { color: "orange" }, typeOpen: false, dragId: null, seq: 0
   };
@@ -517,14 +517,15 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
     if (state.filter.size) h += '<button class="chip clear" data-type="__clear">Tout afficher</button>';
     $("#legend").innerHTML = h;
   }
+  function setSel(a) { state.sel = a; LS.set("agoa.td.person", a.join(",")); }
   function renderTabs() {
     var cnt = {};
     state.d.tasks.forEach(function (t) { if (!t.done && !isSep(t)) cnt[t.person] = (cnt[t.person] || 0) + 1; });
     var total = 0; Object.keys(cnt).forEach(function (k) { total += cnt[k]; });
     var oldIn = $("#colName"), oldVal = oldIn ? oldIn.value : "", hadFocus = !!oldIn && document.activeElement === oldIn;
-    var h = '<button data-person="all" aria-pressed="' + (state.person === "all") + '">Tous<i>' + total + '</i></button>';
-    h += cols().map(function (c) { return '<button data-person="' + esc(c.id) + '" aria-pressed="' + (state.person === c.id) + '">' + esc(c.name) + '<i>' + (cnt[c.id] || 0) + '</i></button>'; }).join("");
-    h += '<button data-person="' + BILL + '" aria-pressed="' + (state.person === BILL) + '">À facturer<i>' + pendingBill().length + '</i></button>';
+    var h = '<button data-person="all" aria-pressed="' + (!state.sel.length) + '">Tous<i>' + total + '</i></button>';
+    h += cols().map(function (c) { return '<button data-person="' + esc(c.id) + '" aria-pressed="' + (state.sel.indexOf(c.id) >= 0) + '">' + esc(c.name) + '<i>' + (cnt[c.id] || 0) + '</i></button>'; }).join("");
+    h += '<button data-person="' + BILL + '" aria-pressed="' + (state.sel.indexOf(BILL) >= 0) + '">À facturer<i>' + pendingBill().length + '</i></button>';
     if (state.addCol) h += '<form id="colForm"><label class="sr" for="colName">Nom de la colonne</label><input id="colName" type="text" placeholder="Nom de la colonne" autocomplete="off"><button class="btn btn-primary small" type="submit">Créer</button><button class="btn btn-plain small" type="button" data-colcancel="1">Annuler</button></form>';
     else h += '<button class="add" data-addcol="1">+ Colonne</button>';
     $("#tabs").innerHTML = h;
@@ -661,8 +662,8 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
     if (COLL.some(function (k) { return !state.got[k]; })) { el.className = "board"; el.innerHTML = '<p class="msg">Chargement des listes…</p>'; return; }
     var ae = document.activeElement, hadAdd = ae && ae.classList && ae.classList.contains("addinput"), hadSep = ae && ae.classList && ae.classList.contains("sepinput");
     var list = cols();
-    var sel = state.person === "all" ? list.concat([{ id: BILL }]) : state.person === BILL ? [{ id: BILL }] : list.filter(function (c) { return c.id === state.person; });
-    el.className = "board" + (state.person === "all" ? "" : " solo");
+    var chosen = state.sel, sel = !chosen.length ? list.concat([{ id: BILL }]) : list.concat([{ id: BILL }]).filter(function (c) { return chosen.indexOf(c.id) >= 0; });
+    el.className = "board" + (sel.length === 1 && chosen.length ? " solo" : "");
     el.innerHTML = sel.length ? sel.map(function (c) { return c.id === BILL ? billColHTML() : colHTML(c); }).join("") : '<p class="msg">Aucune colonne. Créez-en une avec « + Colonne ».</p>';
     if (state.adding && (hadAdd || state.adding.focus)) { var i = el.querySelector(".addinput"); if (i) { i.focus(); var l = i.value.length; i.setSelectionRange(l, l); } state.adding.focus = false; }
     if (state.addingSep && (hadSep || state.addingSepFocus)) { var s = el.querySelector(".sepinput"); if (s) s.focus(); state.addingSepFocus = false; }
@@ -1055,7 +1056,7 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
       disarm();
       arr(state.d.tasks).filter(function (t) { return t.person === cid; }).forEach(function (t) { removeDoc("tasks", t.id); });
       removeDoc("columns", cid);
-      if (state.person === cid) { state.person = "all"; LS.set("agoa.td.person", "all"); }
+      if (state.sel.indexOf(cid) >= 0) { setSel(state.sel.filter(function (x) { return x !== cid; })); }
       state.colMenu = null; renderAll(); toast("Colonne supprimée."); return;
     }
     if (e.target.closest("[data-send]")) { state.sendStep = 1; clearTimeout(sendTimer); sendTimer = setTimeout(function () { if (state.sendStep === 1) { state.sendStep = 0; renderBoard(); } }, 8000); renderBoard(); return; }
@@ -1155,7 +1156,7 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
   $("#q").addEventListener("input", function (e) { state.q = e.target.value.trim(); renderBoard(); });
   $("#tabs").addEventListener("click", function (e) {
     var b = e.target.closest("button"); if (!b) return;
-    if (b.dataset.person) { state.person = b.dataset.person; LS.set("agoa.td.person", state.person); state.colMenu = null; renderTabs(); renderBoard(); }
+    if (b.dataset.person) { var pid = b.dataset.person; setSel(pid === "all" ? [] : state.sel.indexOf(pid) >= 0 ? state.sel.filter(function (x) { return x !== pid; }) : state.sel.concat([pid])); state.colMenu = null; renderTabs(); renderBoard(); }
     else if (b.dataset.addcol) { state.addCol = true; renderTabs(); var i = $("#colName"); if (i) i.focus(); }
     else if (b.dataset.colcancel) { state.addCol = false; renderTabs(); }
   });
@@ -1163,7 +1164,7 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
     e.preventDefault();
     var v = $("#colName").value.trim(); if (!v) return;
     var id = create("columns", { name: v, order: (cols().length ? cols()[cols().length - 1].order || 0 : 0) + 1 });
-    state.addCol = false; state.person = id; LS.set("agoa.td.person", id); renderAll(); toast("Colonne « " + v + " » créée.");
+    state.addCol = false; setSel([id]); renderAll(); toast("Colonne « " + v + " » créée.");
   });
   function swatches() {
     $("#tSw").innerHTML = COLORS.map(function (c) { return '<button type="button" style="--c:' + (c[0] === "none" ? "var(--card)" : "var(--c-" + c[0] + ")") + '" data-sw="' + c[0] + '" title="' + c[1] + '" aria-label="' + c[1] + '" aria-pressed="' + (state.newType.color === c[0]) + '">' + (c[0] === "none" ? "<b>B</b>" : "") + '</button>'; }).join("") + '<input type="color" class="cpick" id="tPick" value="' + hexOf(state.newType.color) + '" aria-label="Couleur personnalisée" title="Couleur personnalisée">';

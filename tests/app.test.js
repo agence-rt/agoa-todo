@@ -144,6 +144,14 @@ test("l'application complète fonctionne sur Ragic", async (t) => {
   assert.equal(d.querySelectorAll('section[data-col="rv"] .hist .task, section[data-col="gaelle"] .hist .task').length >= 0, true);
   d.querySelector('[data-person="__bill"]').click();
   assert.match([...d.querySelectorAll(".bill .sep")].map((x) => x.textContent).join("|"), /RV\|ANALYSE DES OFFRES/);
+  // filtre multi-personnes : on cumule les colonnes, un second clic retire
+  d.querySelector('[data-person="all"]').click(); d.querySelector('[data-person="rv"]').click(); d.querySelector('[data-person="gaelle"]').click();
+  assert.deepEqual([...d.querySelectorAll("#board section[data-col]")].map((x) => x.dataset.col).sort(), ["gaelle", "rv"]);
+  assert.equal(d.querySelector('[data-person="all"]').getAttribute("aria-pressed"), "false");
+  d.querySelector('[data-person="rv"]').click();
+  assert.deepEqual([...d.querySelectorAll("#board section[data-col]")].map((x) => x.dataset.col), ["gaelle"]);
+  d.querySelector('[data-person="gaelle"]').click();
+  assert.equal(d.querySelector('[data-person="all"]').getAttribute("aria-pressed"), "true");
   d.querySelector('[data-person="all"]').click();
 
   // glisser un dossier d'une colonne à une autre (déposé sur l'espace libre de la colonne, puis sur un dossier)
