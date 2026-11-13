@@ -24,8 +24,10 @@
     var box = document.createElement("div");
     box.id = "acct";
     box.innerHTML = '<span id="sync" title="Synchronisation avec Ragic"><i></i><span>Synchronisé</span></span>' +
+      '<button id="btnGmail" class="btn btn-ghost small" type="button" title="Connecter l’application à votre compte Gmail (envoi de la liste à facturer)">Connecter Gmail</button>' +
       '<button id="btnAcct" class="btn btn-ghost small" type="button" aria-haspopup="menu" aria-expanded="false"></button>';
     right.insertBefore(box, cfg);
+    document.getElementById("btnGmail").addEventListener("click", function () { (window.agoaReconnectGmail ? window.agoaReconnectGmail() : agoa.signIn()).catch(function () {}); });
     var btn = document.getElementById("btnAcct");
     btn.textContent = (st.user && st.user.name || "Compte").split(" ")[0];
     var menu = null;

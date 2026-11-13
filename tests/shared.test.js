@@ -66,3 +66,13 @@ test("clé Ragic modifiée dans le launcher : reprise au contrôle suivant", asy
   await svc.refreshShared(); assert.equal(vault.get("ragic_key"), "A");
   key = "B"; const ch = await svc.refreshShared(); assert.equal(ch.ragic, true); assert.equal(vault.get("ragic_key"), "B");
 });
+
+test("reconnexion locale : l'ancien jeton du launcher ne l'écrase pas, un nouveau jeton du launcher oui", async (t) => {
+  let g = { refresh_token: "ANCIEN", email: "a@remithollet.fr", client_id: "cid", scopes: "gmail.send" };
+  const { vault, svc } = await boot(t, () => ({ google: g }));
+  await svc.refreshShared(); assert.equal(vault.get("google_refresh"), "ANCIEN");
+  vault.set("google_refresh", "LOCAL");          /* reconnexion faite dans AGOA TD */
+  await svc.refreshShared(); assert.equal(vault.get("google_refresh"), "LOCAL");
+  g = { ...g, refresh_token: "NOUVEAU" };         /* le launcher se reconnecte à son tour */
+  await svc.refreshShared(); assert.equal(vault.get("google_refresh"), "NOUVEAU");
+});

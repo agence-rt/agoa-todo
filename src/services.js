@@ -47,7 +47,9 @@ class Services {
     const g = sh.google;     // le jeton n'est utilisable qu'avec l'identifiant client qui l'a émis
     const sameClient = g && (!g.client_id || g.client_id === this.auth.clientId);
     this.sharedInfo.google = !!(g && g.refresh_token && g.email && sameClient && String(g.email).toLowerCase().endsWith("@" + config.allowedDomain));
-    if (this.sharedInfo.google && this.vault.get("google_refresh") !== g.refresh_token) {
+    /* le jeton du Launcher n'est repris que s'il est nouveau : une reconnexion faite ici (plus récente) n'est pas écrasée par un ancien jeton expiré */
+    if (this.sharedInfo.google && this.vault.get("google_refresh") !== g.refresh_token && this.vault.get("google_shared_seen") !== g.refresh_token) {
+      this.vault.set("google_shared_seen", g.refresh_token);
       this.vault.set("google_refresh", g.refresh_token);
       this.vault.set("google_profile", JSON.stringify({ email: String(g.email).toLowerCase(), name: g.name || g.email, picture: "", canSend: String(g.scopes || "gmail.send").includes("gmail.send") }));
       this.auth.access = null; changed.google = true;
