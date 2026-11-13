@@ -824,6 +824,7 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
     d.querySelector("[data-dlgno]").focus();
   }
   $("#dlg").addEventListener("click", function (e) {
+    if (e.target.closest("[data-dlgreco]")) { closeDlg(); reconnectGmail(); return; }
     if (e.target.closest("[data-dlgbulk]")) { closeDlg(); runBulkArchitects(); return; }
     var ye = e.target.closest("[data-dlgel]");
     if (ye) { var eid = ye.dataset.dlgel; closeDlg(); removeElement(eid); renderAll(); if (!sheet.hidden) fillSheet(); if (!cfg.hidden) fillCfg(); toast("Élément supprimé."); return; }
@@ -866,6 +867,21 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
     lines.push("", "Envoyé depuis AGOA TD.");
     return lines.join("\n");
   }
+  /* la liaison Gmail est perdue : proposer de la rétablir sans quitter l'application */
+  function askReconnect(code) {
+    dlgFocus = document.activeElement;
+    var d = $("#dlg");
+    d.innerHTML = '<h2 id="dlgT">Gmail n’est plus connecté</h2><p id="dlgP">' + (code === "scope" ? "L’autorisation d’envoyer des courriels n’a pas été accordée." : "La connexion à votre compte Google a expiré.") + ' Reconnectez-vous (une page Google s’ouvre dans votre navigateur), puis relancez l’envoi de la liste.</p><div class="rowb"><button type="button" class="btn btn-plain" data-dlgno="1">Plus tard</button><button type="button" class="btn btn-primary" data-dlgreco="1">Reconnecter Gmail</button></div>';
+    d.hidden = false; $("#dlgscrim").hidden = false;
+    d.querySelector("[data-dlgreco]").focus();
+  }
+  function reconnectGmail() {
+    toast("Une page Google s’ouvre dans votre navigateur : validez la connexion, en cochant l’envoi de courriels.");
+    return agoa.signIn().then(function () { toast("Gmail est reconnecté. Vous pouvez envoyer la liste.", true); }, function (e) {
+      var i = agoa.info ? agoa.info(e) : {}; toast("Connexion à Gmail impossible. " + (i.message || (e && e.message) || ""));
+    });
+  }
+  window.agoaReconnectGmail = reconnectGmail;
   function sendBilling() {
     var items = pendingBill(); if (!items.length) { state.sendStep = 0; renderBoard(); return; }
     var n = 1; state.d.lists.forEach(function (L) { n = Math.max(n, (L.n || 0) + 1); });
@@ -883,6 +899,7 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
       state.sendStep = 0; renderBoard();
       var code = e && e.code, det = e && e.message ? String(e.message) : (code && !/^(error|no_mcp)$/.test(code) ? String(code) : (typeof e === "string" ? e : ""));
       var known = /^(needs_reauth|scope|auth|network)$/.test(code || "");
+      if (/^(needs_reauth|scope)$/.test(code || "") && window.agoa && agoa.signIn) { askReconnect(code); return; }
       toast("Envoi impossible. " + (code === "no_mcp" ? "La messagerie n’est pas disponible dans cette fenêtre." : mcpMsg(code, "Gmail")) + (det && !known ? " — " + det.slice(0, 240) : ""));
     });
   }

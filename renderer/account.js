@@ -34,13 +34,14 @@
       e.stopPropagation();
       if (menu) { close(); return; }
       menu = document.createElement("div"); menu.id = "acctMenu"; menu.setAttribute("role", "menu");
-      menu.innerHTML = '<div class="who"></div><button type="button" data-a="key" role="menuitem">Changer la clé Ragic</button><button type="button" data-a="out" role="menuitem">Se déconnecter</button>';
+      menu.innerHTML = '<div class="who"></div><button type="button" data-a="gmail" role="menuitem">Reconnecter Gmail</button><button type="button" data-a="key" role="menuitem">Changer la clé Ragic</button><button type="button" data-a="out" role="menuitem">Se déconnecter</button>';
       var who = menu.querySelector(".who");
       who.textContent = st.user ? st.user.name : "";
       var sm = document.createElement("small"); sm.textContent = st.user ? st.user.email : ""; who.appendChild(sm);
       box.appendChild(menu); btn.setAttribute("aria-expanded", "true");
       menu.addEventListener("click", function (ev) {
         var b = ev.target.closest("button"); if (!b) return;
+        if (b.dataset.a === "gmail") { close(); (window.agoaReconnectGmail ? window.agoaReconnectGmail() : agoa.signIn()).catch(function () {}); return; }
         var act = b.dataset.a === "key" ? agoa.forgetRagic() : agoa.signOut();
         act.then(function () { location.replace("gate.html"); });
       });
