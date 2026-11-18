@@ -197,6 +197,35 @@ test("l'application complète fonctionne sur Ragic", async (t) => {
   const cp2 = tasks().find((r) => r[f.ref] === "JUMIN11-D" && r[f.key] !== "a");
   assert.equal(cp2[f.billed], "1", "la copie pointe vers la liste n°1");
 
+  // échéance : saisie depuis la fiche, cadre rouge gras dès que la date est atteinte
+  const ymdOf = (n) => { const x = new Date(); x.setDate(x.getDate() + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };
+  d.querySelector('[data-person="all"]').click();
+  d.querySelector('[data-open="a"]').click();
+  const fd = () => d.querySelector("#fDue");
+  fd().value = ymdOf(5); fd().dispatchEvent(new w.Event("change", { bubbles: true })); await sleep(300);
+  assert.ok(!d.querySelector('li.task[data-id="a"]').classList.contains("late"), "échéance future : pas de cadre rouge");
+  assert.match(d.querySelector('li.task[data-id="a"] .tag.due').textContent, /échéance/);
+  fd().value = ymdOf(0); fd().dispatchEvent(new w.Event("change", { bubbles: true })); await sleep(300);
+  assert.ok(d.querySelector('li.task[data-id="a"]').classList.contains("late"), "échéance atteinte le jour même : cadre rouge");
+  assert.equal(JSON.parse(tasks().find((r) => r[f.key] === "a")[f.els])._due, ymdOf(0), "échéance enregistrée dans Ragic");
+  d.querySelector("#scrim").click();
+
+  // « À facturer CONSULTATION ENTREPRISES » : fenêtre demandant la date de fin de consultation
+  d.querySelector('[data-chk="a"]').click();
+  d.querySelector('[data-arch="a|consult"]').click();
+  assert.equal(d.querySelector("#dlg").hidden, false, "la fenêtre de date s'affiche");
+  assert.ok(d.querySelector("#dlgDue"));
+  d.querySelector("[data-dlgno]").click(); await sleep(200);
+  assert.ok(!tasks().find((r) => r[f.kind] === "Séparateur" && r[f.ref] === "CONSULTATION ENTREPRISES envoyé"), "Annuler : rien n'est fait");
+  d.querySelector('[data-chk="a"]').click();
+  d.querySelector('[data-arch="a|consult"]').click();
+  d.querySelector("#dlgDue").value = ymdOf(-2);
+  d.querySelector('[data-dlgdue$="|1"]').click(); await sleep(500);
+  assert.equal(d.querySelector("#dlg").hidden, true);
+  assert.ok(tasks().find((r) => r[f.kind] === "Séparateur" && r[f.ref] === "CONSULTATION ENTREPRISES envoyé"), "fiche classée sous « … envoyé »");
+  assert.equal(JSON.parse(tasks().find((r) => r[f.key] === "a")[f.els])._due, ymdOf(-2), "date de fin de consultation = échéance");
+  assert.ok(d.querySelector('li.task[data-id="a"]').classList.contains("late"), "échéance dépassée : cadre rouge");
+
   // suppression avec fenêtre de confirmation
   d.querySelector('[data-person="all"]').click();
   d.querySelector('[data-chk="c"]').click();

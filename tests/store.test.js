@@ -73,6 +73,16 @@ test("création / mise à jour / suppression d'un dossier et conversions", async
   d2 = store.docs("tasks").find((x) => x.id === "t1").data;
   assert.equal(d2.billCat, "dtg", "modifier les éléments garde la catégorie"); assert.deepEqual(d2.els, { dat: "g" });
 
+  // échéance : rangée dans le JSON « Éléments » (clé réservée), sans polluer les éléments ni perdre la catégorie
+  await store.write({ op: "update", coll: "tasks", id: "t1", data: { due: "2026-12-01" } });
+  d2 = store.docs("tasks").find((x) => x.id === "t1").data;
+  assert.equal(d2.due, "2026-12-01"); assert.equal(d2.billCat, "dtg"); assert.deepEqual(d2.els, { dat: "g" });
+  await store.write({ op: "update", coll: "tasks", id: "t1", data: { els: { dat: "r" } } });
+  d2 = store.docs("tasks").find((x) => x.id === "t1").data;
+  assert.equal(d2.due, "2026-12-01", "modifier les éléments garde l'échéance");
+  await store.write({ op: "update", coll: "tasks", id: "t1", data: { due: "" } });
+  assert.equal(store.docs("tasks").find((x) => x.id === "t1").data.due, "", "échéance effaçable");
+
   await store.write({ op: "delete", coll: "tasks", id: "t1" });
   assert.equal(fake.sheets[P.tasks.path].recs.size, 0); assert.equal(store.docs("tasks").length, 0);
 });

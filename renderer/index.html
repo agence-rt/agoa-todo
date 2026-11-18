@@ -163,6 +163,12 @@ mark.hit { background: #fff200; color: #000; border-radius: 2px; padding: 0 1px;
 .ref { font-weight: 600; font-size: 12.5px; overflow-wrap: anywhere; }
 .note { font-size: 12px; color: var(--ink-soft); overflow-wrap: anywhere; }
 .task.b .ref { font-weight: 800; }
+.task.late { border: 3px solid #d11a2a; border-left-width: 6px; font-weight: 700; box-shadow: 0 0 0 1px rgba(209,26,42,.25); }
+.task.late .ref, .task.late .note { font-weight: 800; }
+.task.late.typed { border-color: #d11a2a; }
+.tag.due { background: var(--tint-red); color: var(--red); border-color: color-mix(in srgb, var(--red) 40%, var(--line)); }
+.task.late .tag.due { background: #d11a2a; color: #fff; border-color: #d11a2a; font-weight: 700; }
+#dlg input[type="date"] { width: 100%; padding: 7px 9px; margin: 0 0 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
 .task.u .ref { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
 .task.i .ref, .task.i .note { font-style: italic; }
 .pills { display: contents; }
@@ -411,6 +417,8 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
     return MENU_ORDER.map(function (k) { return '<button class="' + cls + '" data-arch="' + esc(id) + '|' + k + '" role="menuitem">À facturer ' + esc(catOf(k).label) + '</button>'; }).join("");
   }
   var isSep = function (t) { return t.kind === "sep"; };
+  /* échéance atteinte (jour J ou dépassée) sur une fiche encore ouverte : cadre rouge gras */
+  var isLate = function (t) { return !!t && !t.done && !isSep(t) && !!t.due && t.due <= today(); };
   var FOLDER_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.2l2 2.3h8.8A1.5 1.5 0 0 1 21 8.8v9.7a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/></svg>';
   function typesOf(t) {
     var a = Array.isArray(t.types) ? t.types : (t.status ? [t.status] : []);
@@ -553,11 +561,11 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
       var bands = tint.map(function (c, i) { return c + " " + (i * 100 / n) + "% " + ((i + 1) * 100 / n) + "%"; }).join(",");
       style = "--c:" + cs[0] + ";--stripe:linear-gradient(to bottom," + seg + ");--tint:" + (n > 1 ? "linear-gradient(105deg," + bands + ")" : tint[0]) + ";";
     }
-    var cls = "task" + (n ? " typed" : "") + (bold ? " b" : "") + (t.study ? " u" : "") + (t.todo ? " i" : "");
+    var cls = "task" + (n ? " typed" : "") + (bold ? " b" : "") + (t.study ? " u" : "") + (t.todo ? " i" : "") + (isLate(t) ? " late" : "");
     return '<li class="' + cls + '" style="' + style + '" draggable="true" data-id="' + esc(t.id) + '">' + (n ? '<span class="stripe" aria-hidden="true"></span>' : "") +
       '<button class="chk" role="checkbox" aria-checked="false" data-chk="' + esc(t.id) + '" aria-label="Terminer : ' + esc(t.ref) + '">' + CHECK + '</button><button class="dbx" data-dbx="' + esc(t.ref) + '" title="Ouvrir le dossier Dropbox" aria-label="Ouvrir le dossier Dropbox de ' + esc(t.ref) + '">'+FOLDER_SVG+'</button>' +
       '<div class="tbody"><button class="open" data-open="' + esc(t.id) + '" style="width:100%"><span class="line1"><span class="ref">' + hl(t.ref) + '</span></span>' +
-      (t.note ? '<span class="note">' + hl(t.note) + '</span>' : '') + (ks.length ? '<span class="sr">Types : ' + esc(ks.map(function (k) { return state.d.types.get(k).name; }).join(", ")) + '</span>' : '') + '</button>' +
+      (t.note ? '<span class="note">' + hl(t.note) + '</span>' : '') + (t.due && !t.done ? '<span class="line1"><span class="tag due">' + (isLate(t) ? 'échéance dépassée / atteinte : ' : 'échéance ') + esc(fr(t.due)) + '</span></span>' : '') + (ks.length ? '<span class="sr">Types : ' + esc(ks.map(function (k) { return state.d.types.get(k).name; }).join(", ")) + '</span>' : '') + '</button>' +
       (t.els && Object.keys(t.els).some(function (k) { return t.els[k] && state.d.elements.has(k); }) ? '<div class="line1" style="padding:0 8px 7px 4px">' + pillsHTML(t) + '</div>' : '') + '</div></li>';
   }
   function sepHTML(t) {
@@ -734,14 +742,24 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
   }
 
   /* ---------- archivage et facturation ---------- */
-  function archive(id, key) {
+  function archive(id, key, skipDue) {
     disarm();
     var cat = key && key !== "0" ? catOf(key) : null;
     if (!cat) { edit("tasks", id, { done: true, doneAt: today(), billing: "none", billed: "" }); closeMenu(); toast("Archivé."); return; }
+    if (cat.k === "consult" && !skipDue) { closeMenu(); askDue(id, key); return; }
     if (!cat.staged && !cat.keep) { state.flashT0 = null; state.flashId = id; edit("tasks", id, { done: true, doneAt: today(), billing: "tobill", billed: "", billCat: cat.k }); closeMenu(); toast("Archivé, ajouté à la colonne À facturer · " + cat.label + ".", true); return; }
     if (cat.keep) { var kid = create("tasks", { person: (state.d.tasks.get(id) || {}).person, order: nextOrder((state.d.tasks.get(id) || {}).person), ref: (state.d.tasks.get(id) || {}).ref, done: true, doneAt: today(), billing: "tobill", billed: "", billCat: cat.k, copyOf: id }); state.flashT0 = null; state.flashId = kid; renderAll(); closeMenu(); toast(cat.label + " : la fiche reste dans la colonne (à archiver vous-même), sa référence est ajoutée à À facturer.", true); return; }
     stage(id, cat); closeMenu();
     toast(cat.label + " : la fiche reste dans la colonne, sa référence est ajoutée à À facturer.", true);
+  }
+  /* « À facturer CONSULTATION ENTREPRISES » : demande la date de fin de consultation, qui devient l'échéance de la fiche */
+  function askDue(id, key) {
+    var t = state.d.tasks.get(id); if (!t) return;
+    dlgFocus = document.activeElement;
+    var d = $("#dlg");
+    d.innerHTML = '<h2 id="dlgT">Date de fin de consultation</h2><p id="dlgP"><b>' + esc(t.ref || "") + '</b> : indiquez la date de fin de consultation des entreprises. Elle devient l’échéance de la fiche, qui sera encadrée en rouge gras à cette date.</p><input type="date" id="dlgDue" aria-label="Date de fin de consultation" value="' + esc(t.due || "") + '"><div class="rowb"><button type="button" class="btn btn-plain" data-dlgno="1">Annuler</button><button type="button" class="btn btn-plain" data-dlgdue="' + esc(id) + '|' + esc(key) + '|0">Sans date</button><button type="button" class="btn btn-primary" data-dlgdue="' + esc(id) + '|' + esc(key) + '|1">Valider</button></div>';
+    d.hidden = false; $("#dlgscrim").hidden = false;
+    $("#dlgDue").focus();
   }
   /* catégorie « envoyée » : la fiche reste dans sa colonne sous le séparateur « … envoyé » (créé au besoin), une copie portant la seule référence part dans À facturer */
   function stage(id, cat) {
@@ -828,6 +846,12 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
     if (e.target.closest("[data-dlgbulk]")) { closeDlg(); runBulkArchitects(); return; }
     var ye = e.target.closest("[data-dlgel]");
     if (ye) { var eid = ye.dataset.dlgel; closeDlg(); removeElement(eid); renderAll(); if (!sheet.hidden) fillSheet(); if (!cfg.hidden) fillCfg(); toast("Élément supprimé."); return; }
+    var du = e.target.closest("[data-dlgdue]");
+    if (du) {
+      var dp = du.dataset.dlgdue.split("|"), dv = dp[2] === "1" ? ($("#dlgDue").value || "") : "";
+      if (dp[2] === "1" && !/^\d{4}-\d{2}-\d{2}$/.test(dv)) { toast("Saisissez la date de fin de consultation, ou choisissez « Sans date »."); return; }
+      closeDlg(); if (dv) edit("tasks", dp[0], { due: dv }); archive(dp[0], dp[1], true); return;
+    }
     var y = e.target.closest("[data-dlgyes]");
     if (y) { var id = y.dataset.dlgyes; closeDlg(); removeDoc("tasks", id); if (state.openId === id) closeAll(); renderAll(); toast("Dossier supprimé."); return; }
     if (e.target.closest("[data-dlgno]")) closeDlg();
@@ -920,6 +944,7 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
       var v = (t.els || {})[e.id] || "";
       return '<div class="elrow"><input type="text" class="eln" id="en_' + esc(e.id) + '" data-ename="' + esc(e.id) + '" value="' + esc(e.name) + '" autocomplete="off" aria-label="Renommer l’élément" title="Cliquer pour renommer (modifie toutes les fiches)"><div class="tri"><button type="button" data-setel="' + esc(e.id) + '|" aria-pressed="' + !v + '">Aucun</button><button type="button" class="r" data-setel="' + esc(e.id) + '|r" aria-pressed="' + (v === "r") + '">Manquant</button><button type="button" class="g" data-setel="' + esc(e.id) + '|g" aria-pressed="' + (v === "g") + '">Reçu</button></div><button type="button" class="elx" data-askdelel="' + esc(e.id) + '" aria-label="Supprimer l’élément ' + esc(e.name) + '" title="Supprimer cet élément">×</button></div>';
     }).join("") : '<div class="empty">Aucun élément défini.</div>') + '</div><form class="newel" id="newEl"><label class="sr" for="fNewEl">Nouvel élément</label><input id="fNewEl" type="text" placeholder="Nouvel élément, ex. Diagnostic plomb" autocomplete="off"><button class="btn btn-outline small" type="submit">+ Créer</button></form></div>';
+    h += '<div class="field"><label for="fDue">Échéance</label><input id="fDue" type="date" value="' + esc(t.due || "") + '"><small class="empty">À cette date, la fiche est encadrée en rouge gras. Laisser vide pour aucune échéance.</small></div>';
     h += '<fieldset class="field"><legend>Mise en forme</legend><label class="chk-l"><input type="checkbox" id="fStudy"' + (t.study ? " checked" : "") + '><u>Étude en cours</u><small>souligné</small></label><label class="chk-l"><input type="checkbox" id="fTodo"' + (t.todo ? " checked" : "") + '><i>Point à faire</i><small>italique</small></label></fieldset>';
     h += '<div class="field"><label for="fCol">Colonne</label><select id="fCol">' + cols().map(function (c) { return '<option value="' + esc(c.id) + '"' + (c.id === t.person ? " selected" : "") + '>' + esc(c.name) + '</option>'; }).join("") + '</select></div>';
     h += '<div class="archbox">';
@@ -956,6 +981,7 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
   sheet.addEventListener("change", function (e) {
     var id = state.openId; if (!id) return;
     if (e.target.dataset && e.target.dataset.ename) { var nv = e.target.value.trim(); if (nv && state.d.elements.get(e.target.dataset.ename).name !== nv) { edit("elements", e.target.dataset.ename, { name: nv }); toast("Élément renommé pour toutes les fiches."); } fillSheet(); return; }
+    if (e.target.id === "fDue") { var dd = e.target.value || ""; edit("tasks", id, { due: /^\d{4}-\d{2}-\d{2}$/.test(dd) ? dd : "" }); return; }
     var m = { fStudy: "study", fTodo: "todo" }, o = {};
     if (m[e.target.id]) { o[m[e.target.id]] = e.target.checked; edit("tasks", id, o); }
     else if (e.target.id === "fCol") { var cid = e.target.value, was = (state.d.tasks.get(id) || {}).person; state.flashT0 = null; state.flashId = id; edit("tasks", id, { person: cid, order: topOrder(cid, id) }); if (was !== cid) movedTo(id, cid); }
@@ -1201,6 +1227,9 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
 
   /* ---------- démarrage ---------- */
   renderAll();
+  /* changement de jour (appli laissée ouverte) : les échéances atteintes passent au rouge sans recharger */
+  var lastDay = today();
+  setInterval(function () { if (today() !== lastDay) { lastDay = today(); renderHead(); renderBoard(); } }, 60000);
   function applySnap(coll, snap) {
     var m = new Map();
     snap.docs.forEach(function (d) { m.set(d.id, Object.assign({ id: d.id }, d.data())); });
