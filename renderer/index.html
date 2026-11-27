@@ -97,8 +97,7 @@ button { cursor: pointer; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px 4px 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); font-size: 13px; }
 mark.hit { background: #fff200; color: #000; border-radius: 2px; padding: 0 1px; box-shadow: 0 0 0 1px #fff200; }
-.dbx { position: absolute; top: 5px; right: 5px; z-index: 1; display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 4px; background: var(--card); color: var(--ink-soft); opacity: 0; }
-.task:hover .dbx, .dbx:focus-visible { opacity: 1; }
+.dbx { position: absolute; top: 5px; right: 5px; z-index: 1; display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 4px; background: var(--card); color: var(--ink-soft); opacity: 1; }
 .dbx:hover { color: var(--teal); background: var(--hover); }
 .dbxrow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .dbxpath { font-size: 12px; color: var(--ink-soft); overflow-wrap: anywhere; }
@@ -616,9 +615,6 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
     var segs = Object.keys(cnt).map(function (k) { return '<span style="flex:' + cnt[k] + ';--c:' + (k && state.d.types.has(k) ? typeVar(k) : "var(--line)") + '"></span>'; }).join("");
     var totalDocs = arr(state.d.tasks).filter(function (t) { return t.person === c.id; }).length;
     var h = '<section class="col" data-col="' + esc(c.id) + '"><div class="col-h"><div class="row"><h2>' + esc(c.name) + '</h2><span class="n">' + open.length + ' ouvert' + (open.length > 1 ? "s" : "") + '</span><button class="more" data-colmenu="' + esc(c.id) + '" aria-expanded="' + (state.colMenu === c.id) + '" aria-label="Options de la colonne ' + esc(c.name) + '">⋯</button></div><div class="bar" aria-hidden="true">' + segs + '</div>' + (state.colMenu === c.id ? colMenuHTML(c, totalDocs) : "") + '</div>';
-    var vis = items.filter(visible);
-    h += '<ul class="list" data-p="' + esc(c.id) + '">' + vis.map(function (t) { return isSep(t) ? sepHTML(t) : taskHTML(t); }).join("") + '</ul>';
-    if (!vis.length) h += '<div class="empty">' + (items.length ? "Aucun dossier ne correspond aux filtres." : "Aucun dossier pour l’instant.") + '</div>';
     var a = state.adding;
     if (a && a.p === c.id) {
       h += '<div class="addwrap"><form class="addrow"><input class="addinput" type="text" placeholder="Référence (recherche Ragic)" aria-label="Référence du dossier" autocomplete="off" value="' + esc(a.v) + '"><button type="submit">Ajouter</button></form><ul class="sug">' + sugHTML() + '</ul></div>';
@@ -627,6 +623,9 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
     } else {
       h += '<div class="acts"><button class="addbtn" data-add="' + esc(c.id) + '">+ Ajouter un dossier</button><button class="addbtn small" data-addsep="' + esc(c.id) + '">+ Séparateur</button></div>';
     }
+    var vis = items.filter(visible);
+    h += '<ul class="list" data-p="' + esc(c.id) + '">' + vis.map(function (t) { return isSep(t) ? sepHTML(t) : taskHTML(t); }).join("") + '</ul>';
+    if (!vis.length) h += '<div class="empty">' + (items.length ? "Aucun dossier ne correspond aux filtres." : "Aucun dossier pour l’instant.") + '</div>';
     var weeks = doneWeeks(c.id);
     var nArch = weeks.reduce(function (n, w) { return n + w.items.length; }, 0), aKey = "p:" + c.id, aOpen = state.archOpen.has(aKey);
     h += '<div class="hist' + (aOpen ? "" : " closed") + '"><button class="hist-t" data-arch-toggle="' + esc(aKey) + '" aria-expanded="' + aOpen + '"><span class="chev" aria-hidden="true">▸</span>Archives · dernier mois<i>' + nArch + ' terminé' + (nArch > 1 ? "s" : "") + '</i></button>';
@@ -1124,7 +1123,7 @@ li.flash { animation: agoaFlash 1.5s ease-out; position: relative; z-index: 2; }
     if (f.classList.contains("addrow")) { submitAdd(); return; }
     if (f.classList.contains("sepform")) {
       var v = f.querySelector("input").value.trim();
-      if (v) createTask(f.dataset.cid, { kind: "sep", label: v });
+      if (v) createTask(f.dataset.cid, { kind: "sep", label: v, order: topOrder(f.dataset.cid) });
       state.addingSep = null; renderAll(); return;
     }
     if (f.classList.contains("sepedit")) {
